@@ -53,6 +53,18 @@ Below are the explanations for some of the options:
   - `--readFilesCommand zcat` is used if your input fastq files are gzipped;
   - options grouped as `$SORTEDBAM` should be used if you need a genomic bam file; otherwise, use `$NOBAM`.  
 
+Actual `STAR` command being run: 
+
+```bash
+STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX \
+     --readFilesCommand zcat $NOBAM --soloType CB_UMI_Simple --soloCBwhitelist $BC \
+     --soloBarcodeReadLength 0 --soloUMIlen $UMILEN --soloStrand $STR --soloUMIdedup 1MM_CR \
+     --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
+     --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
+     --soloFeatures Gene GeneFull Velocyto \
+     --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
+```
+
 ### Counting the multimapping reads
 
 Default approach used by `Cell Ranger` (and `STARsolo` scripts above) is to discard all reads that map to multiple genomic locations with equal mapping quality. This approach creates a bias in gene expression estimation. Pseudocount-based methods correctly quantify multimapping reads, but generate false counts due to pseudo-alignment errors. These issues are described in good detail [here](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1). 

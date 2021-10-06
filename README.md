@@ -38,14 +38,14 @@ Full script with the latest settings is available in `/scripts/starsolo_newest.s
 
 Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
 
-Below are the explanations for some of the options: 
+Below are the explanations for some of the options (note that 5' experiments **always** use `737K-august-2016.txt` barcode file): 
   - `--runDirPerm All_RWX` allows a directory readable by all users, which becomes an issue when sharing results on Farm; 
   - `--soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloUMIlen $UMILEN --soloStrand $STR` are settings that change with the used 10x chemistry:
     - BC=`737K-april-2014_rc.txt`, UMILEN=10, STR=Forward for 3' v1; 
     - BC=`737K-august-2016.txt`, UMILEN=10, STR=Forward for 3' v2; 
     - BC=`3M-february-2018.txt`, UMILEN=12, STR=Forward for 3' v3 and v3.1; 
     - BC=`737K-august-2016.txt`, UMILEN=10, STR=Reverse, for 5' v2;
-    - BC=`3M-february-2018.txt`, UMILEN=12, STR=Reverse, for 5' v3. 
+    - BC=`737K-august-2016.txt`, UMILEN=12, STR=Reverse, for 5' v3. 
   - `--soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30` are options that define UMI collapsing, barcode collapsing, and read clipping algorithms that are closest to ones used by `Cell Ranger`; 
   - `--soloCellFilter EmptyDrops_CR` specifies the cell filtering algorithm used in [EmptyDrops](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html), which is the default algorithm in later versions of `Cell Ranger`; 
   - `--soloFeatures Gene GeneFull Velocyto` output conventional (exon-only) UMI counts, as well as exon+intron UMI counts (analog of `Cell Ranger` premrna option), as well as matrices preprocessed for `Velocyto`; 
@@ -53,7 +53,7 @@ Below are the explanations for some of the options:
   - `--readFilesCommand zcat` is used if your input fastq files are gzipped;
   - options grouped as `$SORTEDBAM` should be used if you need a genomic bam file; otherwise, use `$NOBAM`.  
 
-Actual `STAR` command being run: 
+Actual `STAR` command being run (note the order of read files passed to `--readFilesIn`): 
 
 ```bash
 STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX \

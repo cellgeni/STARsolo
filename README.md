@@ -6,7 +6,9 @@ These are the scripts used for CellGenIT for synchronized processing of scRNA-se
 
 ### STAR and RSEM versions
 
-`STAR` of version 2.7.9a or above is recommended. The newest update includes the ability to correctly process multi-mapping reads. In order to use settings that closely mimic those of `Cell Ranger` v4 or above (see explanations below, particularly `--clipAdapterType CellRanger4` settings), `STAR` needs to be re-compiled from source with `make STAR CXXFLAGS_SIMD="-msse4.2"` (see [this issue](https://github.com/alexdobin/STAR/issues/1218) for more info). If you get the "Illegal instruction" error, that's what you need to do. 
+`STAR` of version 2.7.9a or above is recommended. The newest update includes the ability to correctly process multi-mapping reads, and adds many important options and bug fixes. 
+
+In order to use settings that closely mimic those of `Cell Ranger` v4 or above (see explanations below, particularly `--clipAdapterType CellRanger4` option), `STAR` needs to be re-compiled from source with `make STAR CXXFLAGS_SIMD="-msse4.2"` (see [this issue](https://github.com/alexdobin/STAR/issues/1218) for more info). If you get the "Illegal instruction" error, that's what you need to do. 
 
 There's also Martin Prete's awesome `icpc`-compiled version of `STAR` that's being tested right now - stay tuned for the updates. 
 
@@ -14,11 +16,11 @@ There's also Martin Prete's awesome `icpc`-compiled version of `STAR` that's bei
 
 ## Reference genome and annotation
 
-The issues of reference genome and annotation used for mouse and human scRNA-seq experiments are described [here](https://www.singlecellcourse.org/processing-raw-scrna-seq-sequencing-data-from-reads-to-a-count-matrix.html) in some detail. 
+The issues of reference genome and annotation used for **mouse** and **human** scRNA-seq experiments are described [here](https://www.singlecellcourse.org/processing-raw-scrna-seq-sequencing-data-from-reads-to-a-count-matrix.html) in some detail. 
 
 Briefly,
 
-  - there are several standard annotation versions used by Cell Ranger; They are referred to as versions `1.2.0`, `2.1.0`, `3.0.0`, and `2020-A`; 
+  - there are several standard annotation versions used by `Cell Ranger`; They are referred to as versions `1.2.0`, `2.1.0`, `3.0.0`, and `2020-A`; 
   - the references are filtered to remove pseudogenes and small RNAs; exact filtering scripts are available [here](https://support.10xgenomics.com/single-cell-gene-expression/software/release-notes/build#header); 
   - number of genes in `Cell Ranger` filtered human reference is about 35k, in full human genome is about 60k.
 
@@ -39,13 +41,13 @@ Before running, barcode whitelists need to be downloaded [from here](https://git
 Below are the explanations for some of the options: 
   - `--runDirPerm All_RWX` allows a directory readable by all users, which becomes an issue when sharing results on Farm; 
   - `--soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloUMIlen $UMILEN --soloStrand $STR` are settings that change with the used 10x chemistry:
-    - BC=`737K-april-2014_rc.txt`, UMILEN=10, STR Forward for 3' v1; 
-    - BC=`737K-august-2016.txt`, UMILEN=10, STR Forward for 3' v2; 
-    - BC=`3M-february-2018.txt`, UMILEN=12, STR Forward for 3' v3 and v3.1; 
-    - BC=`737K-august-2016.txt`, UMILEN=10, STR Reverse, for 5' v2;
-    - BC=`3M-february-2018.txt`, UMILEN=12, STR Reverse, for 5' v3. 
+    - BC=`737K-april-2014_rc.txt`, UMILEN=10, STR=Forward for 3' v1; 
+    - BC=`737K-august-2016.txt`, UMILEN=10, STR=Forward for 3' v2; 
+    - BC=`3M-february-2018.txt`, UMILEN=12, STR=Forward for 3' v3 and v3.1; 
+    - BC=`737K-august-2016.txt`, UMILEN=10, STR=Reverse, for 5' v2;
+    - BC=`3M-february-2018.txt`, UMILEN=12, STR=Reverse, for 5' v3. 
   - `--soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30` are options that define UMI collapsing, barcode collapsing, and read clipping algorithms that are closest to ones used by `Cell Ranger`; 
-  - `--soloCellFilter EmptyDrops_CR` specifies the cell filtering algorithm used in [EmptyDrops](), which is the default algorithm in later versions of `Cell Ranger`; 
+  - `--soloCellFilter EmptyDrops_CR` specifies the cell filtering algorithm used in [EmptyDrops](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html), which is the default algorithm in later versions of `Cell Ranger`; 
   - `--soloFeatures Gene GeneFull Velocyto` output conventional (exon-only) UMI counts, as well as exon+intron UMI counts (analog of `Cell Ranger` premrna option), as well as matrices preprocessed for `Velocyto`; 
   - `--soloMultiMappers Unique EM` is to count multimappers; 
   - `--readFilesCommand zcat` is used if your input fastq files are gzipped;
@@ -68,17 +70,22 @@ Full script with the latest settings for STAR/RSEM processing of bulk RNA-seq is
 Actual `STAR` command being run: 
 
 ```bash
-STAR --runThreadN $CPUS --genomeDir $SREF --readFilesIn $R1 $R2 --readFilesCommand zcat --outFilterMultimapNmax 20 \
-     --alignSJoverhangMin 8 --alignSJDBoverhangMin 1 --outFilterMismatchNmax 999 --outFilterMismatchNoverReadLmax 0.04 \
-     --alignIntronMin 20 --alignIntronMax 1000000 --alignMatesGapMax 1000000 --outSAMheaderCommentFile COfile.txt \
-     --outSAMheaderHD @HD VN:1.4 SO:coordinate --outSAMunmapped Within --outFilterType BySJout --outSAMattributes NH HI AS NM MD \
-     --outSAMtype BAM SortedByCoordinate --quantMode TranscriptomeSAM GeneCounts --sjdbScore 1 --limitBAMsortRAM 30000000000
+STAR --runThreadN $CPUS --genomeDir $SREF --readFilesIn $R1 $R2 --readFilesCommand zcat \
+     --outFilterMultimapNmax 20 --alignSJoverhangMin 8 --alignSJDBoverhangMin 1 \
+     --outFilterMismatchNmax 999 --outFilterMismatchNoverReadLmax 0.04 --alignIntronMin 20 \
+     --alignIntronMax 1000000 --alignMatesGapMax 1000000 --outSAMheaderCommentFile COfile.txt \
+     --outSAMheaderHD @HD VN:1.4 SO:coordinate --outSAMunmapped Within --outFilterType BySJout \
+     --outSAMattributes NH HI AS NM MD --outSAMtype BAM SortedByCoordinate --sjdbScore 1\
+     --quantMode TranscriptomeSAM GeneCounts --limitBAMsortRAM 30000000000
 ```
 
 `RSEM` command for quantification using the transcriptomic BAM file: 
 
 ```bash
-rsem-calculate-expression $PAIRED -p $CPUS --bam --estimate-rspd --seed 12345 -p 4 --no-bam-output --forward-prob 0.5 Aligned.toTranscriptome.out.bam $RREF $TAG.rsem
+rsem-calculate-expression $PAIRED -p $CPUS --bam --estimate-rspd --seed 12345 -p 4 --no-bam-output \
+     --forward-prob 0.5 Aligned.toTranscriptome.out.bam $RREF $TAG.rsem
 ```
 
-`$RREF` here is `RSEM` reference prepared with `rsem-prepare-reference`; `$PAIRED` is set to "--paired-end" for paired-end experiments and to empty string if the experiment is single-end. For strand-specific processing, `--forward-prob` can be changed to 1 (forward read matches the direction of the gene), or 0 (reverse strand specificity, common for dUTP-based protocols). 
+`$RREF` here is `RSEM` reference prepared with the `rsem-prepare-reference` shown above. `$PAIRED` is set to "--paired-end" for paired-end experiments and to empty string if the experiment is single-end. For strand-specific processing, `--forward-prob` can be changed to 1 (forward read matches the direction of the gene), or 0 (reverse strand specificity, common for dUTP-based protocols).
+
+`RSEM` output generates both per-gene and per-transcript tables, with raw read counts and TPM and FPKM normalized counts.  

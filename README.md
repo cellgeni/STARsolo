@@ -30,6 +30,12 @@ Once you have downloaded the needed fasta and GTF files, and applied the necessa
 
 `STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles $FA --sjdbGTFfile $GTF`
 
+`STARsolo` reference is not different from a normal `STAR` reference - `STARsolo` workflow is invoked using the options listed below. Thus, it can be run on both `Cell Ranger` filtered and un-filtered index. We use the filtered reference to match the `Cell Ranger` output as closely as possible. 
+
+### Pre-made reference location
+
+All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/`. Barcode whitelist files are located in `/nfs/cellgeni/STAR/whitelists`. 
+
 ## Processing scRNA-seq with STARsolo
 
 ### Reprodicing `Cell Ranger` v4 and above (but much faster)

@@ -13,10 +13,10 @@
 
 TAG=$1
 CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-REF=/nfs/cellgeni/alexp/STARsolo-GRCh38-3.0.0/STAR
-FQDIR=/lustre/scratch117/cellgen/cellgeni/alexp/10x/STARsolo/Luz_5prime/2new_human/fastqs
-#BC=/nfs/users/nfs_a/ap41/whitelists/3M-february-2018.txt  ## 10x v3
-BC=/nfs/users/nfs_a/ap41/whitelists/737K-august-2016.txt ## 10x v2 or all 5' 
+REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the proper reference 
+FQDIR=/lustre/scratch117/cellgen/cellgeni/alexp/10x/STARsolo/Luz_5prime/2new_human/fastqs ## your directory where fastq files or dirs are located
+#BC=/nfs/cellgeni/STAR/whitelists/3M-february-2018.txt  ## 10x v3
+BC=/nfs/cellgeni/STAR/whitelists/737K-august-2016.txt ## 10x v2 or all 5' 
 #UMILEN=12    ## 10x v3
 UMILEN=10   ## 10x v2
 STR=Reverse  ## 5' 10x
@@ -25,7 +25,7 @@ SORTEDBAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitB
 NOBAM="--outSAMtype None"
 
 mkdir $TAG && cd $TAG
-## for multiple fastq files:
+## for multiple fastq files; change grep options according to your file format 
 R1=`find $FQDIR/* | grep $TAG | grep R1 | sort | tr '\n' ',' | sed "s/,$//g"`
 R2=`find $FQDIR/* | grep $TAG | grep R2 | sort | tr '\n' ',' | sed "s/,$//g"`
 

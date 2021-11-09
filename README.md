@@ -88,7 +88,8 @@ Example of a script used to process Smart-seq2 data can be found in `/scripts/st
 ```bash
 STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand zcat $SORTEDBAM \
      --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3 \
-     --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv --soloUMIdedup Exact --soloStrand Unstranded \
+     --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv \
+     --soloUMIdedup Exact --soloStrand Unstranded \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
 ```
 

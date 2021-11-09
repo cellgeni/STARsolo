@@ -40,7 +40,7 @@ All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/
 
 ### Reprodicing `Cell Ranger` v4 and above (but much faster)
 
-Full script with the latest settings is available in `/scripts/starsolo_newest.sh`. It contains *many* options that frequently change; some of which will be explained below. In general, it's tuned in such way that the results with be very close to those of `Cell Ranger` v4 and above. 
+Full scripts with the latest settings are available in `/scripts` (there are several scripts according to 10x chemistry version; e.g. `starsolo_3p_v3.sh` should be used for v3 of 3' 10x, while `starsolo_5p_v2.sh` should be used for v2 of 5'. The scripts contain *many* options that frequently change; some of which will be explained below. In general, commands are tuned in such way that the results with be very close to those of `Cell Ranger` v4 and above. 
 
 Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
 
@@ -79,11 +79,27 @@ STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_
      --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
 ```
 
+### Using STARsolo for Smart-seq/Smart-seq2
+
+For plate-based methods that don't use UMIs (such as [SMART-Seq and SMART-Seq2](https://teichlab.github.io/scg_lib_structs/methods_html/SMART-seq_family.html)), `STARsolo` can be used as well. Fastq files for these methods usually come as separate, paired-end files; all of these should be listed in a *manifest* file - plain text, tab-separated file containing three columns per line: 1) full path to R1; 2) full path to R2; 3) cell name or ID. 
+
+Example of a script used to process Smart-seq2 data can be found in `/scripts/starsolo_ss2.sh`. Actual `STAR` command being run:
+
+```bash
+STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand zcat $SORTEDBAM \
+     --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3 \
+     --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv --soloUMIdedup Exact --soloStrand Unstranded \
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
+```
+
+Sometimes, reads can benefit from trimming adapters, which can be turned on using `--clip3pAdapterSeq <3' adapter sequence>` option. Alternatively, `bbduk.sh` can be used to trim adapters from reads prior to the alignment and quantification.  
+
 ### Counting the multimapping reads
 
 Default approach used by `Cell Ranger` (and `STARsolo` scripts above) is to discard all reads that map to multiple genomic locations with equal mapping quality. This approach creates a bias in gene expression estimation. Pseudocount-based methods correctly quantify multimapping reads, but generate false counts due to pseudo-alignment errors. These issues are described in good detail [here](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1). 
 
 If you would like to process multimappers, add the following options: `--soloMultiMappers Uniform EM`. This will generate an extra matrix in the /raw output folders. There will be non-integer numbers in the matrix because of split reads. If the downstream processing requires integers, you can round with a tool of your liking (e.g. `awk`). 
+
 
 ## Processing bulk RNA-seq with STAR/RSEM
 

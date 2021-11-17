@@ -1,4 +1,4 @@
-# Synchronized processing of scRNA-seq and bulk RNA-seq 
+# Synchronized processing of bulk and scRNA-seq
 
 These are the scripts used for CellGenIT for synchronized processing of scRNA-seq and bulk RNA-seq. Both use [STAR](https://github.com/alexdobin/STAR) aligner to align reads to the reference genome. 
 
@@ -109,7 +109,7 @@ If you've used these scripts to process multiple 10x samples, you can get a quic
 ./solo_QC.sh <output_tag> | column -t 
 ```
 
-The **output_tag** argument could be any common part of the folder name - e.g. if samples are called SRR124444..SRR124534, you can use **SRR124** or **SRR**.
+The **output_tag** argument could be any common part of the folder name - e.g. if samples are called SRR124444 .. SRR124534, you can use **SRR124** or **SRR**.
 
 ## Processing bulk RNA-seq with STAR/RSEM
 

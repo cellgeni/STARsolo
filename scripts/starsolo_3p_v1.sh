@@ -4,6 +4,13 @@
 ## velocyto extra processing also became unnecessary 
 
 TAG=$1
+if [[ $TAG == "" ]]
+then
+  >&2 echo "Usage: ./starsolo_3p_v1.sh <sample_tag>"
+  >&2 echo "(make sure you set the correct REF, FQDIR, and SORTEDBAM/NOBAM variables)"
+  exit 1
+fi
+
 CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
 FQDIR=/lustre/scratch117/cellgen/cellgeni/alexp/fastqs  ### change to the directory with fastq files/folders
@@ -22,8 +29,15 @@ NOBAM="--outSAMtype None"
 
 mkdir $TAG && cd $TAG
 ## for multiple fastq files; change grep options according to your fastq file format 
-R1=`find $FQDIR/* | grep $TAG | grep _R1_ | sort | tr '\n' ',' | sed "s/,$//g"`
-R2=`find $FQDIR/* | grep $TAG | grep _R2_ | sort | tr '\n' ',' | sed "s/,$//g"`
+R1=`find $FQDIR/* | grep $TAG | grep "R1.fastq.gz" | sort | tr '\n' ',' | sed "s/,$//g"`
+R2=`find $FQDIR/* | grep $TAG | grep "R2.fastq.gz" | sort | tr '\n' ',' | sed "s/,$//g"`
+
+if [[ $R1 == "" || $R2 == "" ]]
+then
+  >&2 echo "No appropriate R1 or R2 read files was found for sample tag $TAG! Make sure you have set the correct FQDIR."
+  >&2 echo "Usage: ./starsolo_3p_v1.sh <sample_tag>"
+  exit 1
+fi
 
 ## for v1 10x, we added --soloCBlen 14 --soloUMIstart 15, since barcodes are 14 bp long (default is 16)
 STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX --readFilesCommand zcat $NOBAM \

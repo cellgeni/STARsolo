@@ -101,6 +101,15 @@ Default approach used by `Cell Ranger` (and `STARsolo` scripts above) is to disc
 
 If you would like to process multimappers, add the following options: `--soloMultiMappers Uniform EM`. This will generate an extra matrix in the /raw output folders. There will be non-integer numbers in the matrix because of split reads. If the downstream processing requires integers, you can round with a tool of your liking (e.g. `awk`). 
 
+## Quick evaluation of multiple STARsolo runs
+
+If you've used these scripts to process multiple 10x samples, you can get a quick look at the results by copying `solo_QC.sh` script from this repo to the directory with `STARsolo` output folders, and running
+
+```bash
+./solo_QC.sh <output_tag> | column -t 
+```
+
+The **output_tag** argument could be any common part of the folder name - e.g. if samples are called SRR124444..SRR124534, you can use **SRR124** or **SRR**.
 
 ## Processing bulk RNA-seq with STAR/RSEM
 

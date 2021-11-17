@@ -8,7 +8,9 @@ TAG=$1
 
 if [[ ! -s $TAG.manifest.tsv ]]
 then 
-  echo "ERROR: File $TAG.manifest.tsv does not exist or is empty! Please provide appropriate manifest file."
+  >&2 echo "ERROR: File $TAG.manifest.tsv does not exist or is empty! Please provide appropriate manifest file."
+  >&2 echo "Usage: ./starsolo_ss2.sh <manifest_tsv>"
+  exit 1
 fi
 
 CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   

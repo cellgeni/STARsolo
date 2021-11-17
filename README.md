@@ -50,13 +50,13 @@ Below are the explanations for some of the options (note that 5' experiments **a
 
 <div align="center">
 
-| BC | UMILEN | STR |
-|:-:|:-:|:-:|
-| 737K-april-2014_rc.txt |10 | Forward for 3' v1 |
-| 737K-august-2016.txt |10 | Forward for 3' v2 |
-| 3M-february-2018.txt |12 | Forward for 3' v3 and v3.1 |
-| 737K-august-2016.txt |10 | Reverse, for 5' v1.1 and v2 |
-| 737K-august-2016.txt | 12 | Reverse, for 5' v3 |
+| 10X VERSION | BC | UMILEN | STR |
+|:-:|:-:|:-:|:-:|
+| 3' v1 | 737K-april-2014_rc.txt |10 | Forward |
+| 3' v2 | 737K-august-2016.txt |10 | Forward |
+| 3' v3,v3.1 | 3M-february-2018.txt |12 | Forward |
+| 5' v1.1,v2 | 737K-august-2016.txt |10 | Reverse |
+| 5' v3 | 737K-august-2016.txt | 12 | Reverse |
 
 </div>
 

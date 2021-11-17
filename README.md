@@ -22,7 +22,7 @@ Briefly,
 
   - there are several standard annotation versions used by `Cell Ranger`; They are referred to as versions `1.2.0`, `2.1.0`, `3.0.0`, and `2020-A`; 
   - the references are filtered to remove pseudogenes and small RNAs; exact filtering scripts are available [here](https://support.10xgenomics.com/single-cell-gene-expression/software/release-notes/build#header); 
-  - number of genes in `Cell Ranger` filtered human reference is about 35k, in full human genome is about 60k.
+  - number of genes in `Cell Ranger` filtered human reference is about 35k; in full human annotation is about 60k.
 
 Depending on the task at hand, bulk RNA-seq can be processed either using the `Cell Ranger` filtered reference, or full annotation with 60k genes. Usually we do the latter.
 
@@ -54,8 +54,8 @@ Below are the explanations for some of the options (note that 5' experiments **a
 |:-:|:-:|:-:|:-:|
 | 3' v1 | 737K-april-2014_rc.txt |10 | Forward |
 | 3' v2 | 737K-august-2016.txt |10 | Forward |
-| 3' v3,v3.1 | 3M-february-2018.txt |12 | Forward |
-| 5' v1.1,v2 | 737K-august-2016.txt |10 | Reverse |
+| 3' v3, v3.1 | 3M-february-2018.txt |12 | Forward |
+| 5' v1.1, v2 | 737K-august-2016.txt |10 | Reverse |
 | 5' v3 | 737K-august-2016.txt | 12 | Reverse |
 
 </div>

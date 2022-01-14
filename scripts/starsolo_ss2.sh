@@ -27,7 +27,7 @@ mkdir $TAG.solo.SS2 && cd $TAG.solo.SS2
 STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand zcat $SORTEDBAM \
      --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3 \
      --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv --soloUMIdedup Exact --soloStrand Unstranded \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
 
 echo "ALL DONE!"
  

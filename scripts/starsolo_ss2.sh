@@ -15,19 +15,15 @@ fi
 
 CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the proper reference 
-
-## chose one of the two options below, depending on whether you need the BAM file 
-SORTEDBAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM GX GN"
-NOBAM="--outSAMtype None"
+GZIP="--readFilesCommand zcat"
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM GX GN"
+BAM="--outSAMtype None"
 
 mkdir $TAG.solo.SS2 && cd $TAG.solo.SS2
 
-## outFilter* options can be adjusted according to the mapping rate
-## alignment often works well without clipping; if not, --clip3pAdapterSeq <3' adapter sequence> option can be added 
-STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand zcat $SORTEDBAM \
+## outFilter* options can be adjusted according to the mapping rate and mapped length
+## alignment often works well without clipping; if not, --clip3pAdapterSeq <3' adapter sequence> option can be added, or separate trimming using bbduk.sh works well too
+STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX $GZIP $BAM \
      --outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3 \
      --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv --soloUMIdedup Exact --soloStrand Unstranded \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
-
-echo "ALL DONE!"
- 

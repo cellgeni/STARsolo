@@ -14,7 +14,7 @@ fi
 
 CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-1328/fastqs  ### change to the directory with fastq files/folders
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ### change to the directory with fastq files/folders
 ## choose one of the two otions, depending on whether you need a BAM file 
 #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
 BAM="--outSAMtype None"
@@ -146,7 +146,7 @@ STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn test.R2.fastq test.R1.fas
      --soloFeatures Gene --soloOutFileNames test_strand/ features.tsv barcodes.tsv matrix.mtx &> /dev/null 
 rm test.R1.fastq test.R2.fastq
 
-GENEPCT=`grep "Reads Mapped to Gene: Unique+Multipe Gene" test_strand/Gene/Summary.csv | awk -F "," '{printf "%d\n",$2*100}'`
+GENEPCT=`grep "Reads Mapped to Gene: Unique Gene" test_strand/Gene/Summary.csv | awk -F "," '{printf "%d\n",$2*100}'`
 if (( $GENEPCT < 10 )) 
 then
   STRAND=Reverse

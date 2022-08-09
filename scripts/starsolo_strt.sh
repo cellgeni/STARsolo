@@ -13,16 +13,24 @@ then
   exit 1
 fi
 
-CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-1211/GSE142653/fastqs  ### change to the directory with fastq files/folders
-BC=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-1211/GSE142653/96_barcodes.list
-UMILEN=8  ## need to change barcode length too 
-STR=Forward  ## 3' 10x
+CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
+REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
+WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
 
 ## choose one of the two otions, depending on whether you need a BAM file 
-SORTEDBAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
-NOBAM="--outSAMtype None"
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
+BAM="--outSAMtype None"
+
+###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################
+
+if [[ `which samtools` == "" || `which STAR` == "" ]]
+then
+  echo "ERROR: Please make sure you have STAR (v2.7.9a or above) and samtools are installed and available in PATH!"
+  exit 1
+fi
+
+BC=$WL/96_barcodes.list
 
 mkdir $TAG && cd $TAG
 ## for multiple fastq files; change grep options according to your fastq file format 
@@ -50,6 +58,12 @@ do
   cd $i; for j in *; do gzip $j & done
   cd ../../
 done
+
+## index the BAM file
+if [[ -s Aligned.sortedByCoord.out.bam ]]
+then
+  samtools index -@16 Aligned.sortedByCoord.out.bam
+fi
 
 wait
 echo "ALL DONE!"

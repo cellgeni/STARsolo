@@ -7,24 +7,33 @@
 TAG=$1
 if [[ $TAG == "" ]]
 then
-  >&2 echo "Usage: ./starsolo_auto.sh <sample_tag>"
+  >&2 echo "Usage: ./starsolo_indrops.sh <sample_tag>"
   >&2 echo "(make sure you set the correct REF, FQDIR, and SORTEDBAM/NOBAM variables)"
   exit 1
 fi
 
-CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-1258/inDrops_fastqs  ### change to the directory with fastq files/folders
-## choose one of the two otions, depending on whether you need a BAM file 
-BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
-#BAM="--outSAMtype None"
+CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
+REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
+WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
 
-###################### DONT CHANGE OPTIONS BELOW THIS LINE ###########################
+## choose one of the two otions, depending on whether you need a BAM file 
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
+BAM="--outSAMtype None"
+
+###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################
+
+if [[ `which samtools` == "" || `which STAR` == "" ]]
+then
+  echo "ERROR: Please make sure you have STAR (v2.7.9a or above) and samtools are installed and available in PATH!"
+  exit 1
+fi
+
 
 mkdir $TAG && cd $TAG
 
-BC1=/nfs/cellgeni/STAR/whitelists/inDrops_Ambrose2_bc1.txt
-BC2=/nfs/cellgeni/STAR/whitelists/inDrops_Ambrose2_bc2.txt
+BC1=$WL/inDrops_Ambrose2_bc1.txt
+BC2=$WL/inDrops_Ambrose2_bc2.txt
 
 R1=""
 R2=""
@@ -65,6 +74,12 @@ do
   cd $i; for j in *; do gzip $j & done
   cd ../../
 done
+
+## index the BAM file
+if [[ -s Aligned.sortedByCoord.out.bam ]]
+then
+  samtools index -@16 Aligned.sortedByCoord.out.bam
+fi
 
 wait
 echo "ALL DONE!"

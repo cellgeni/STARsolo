@@ -7,19 +7,27 @@
 TAG=$1
 if [[ $TAG == "" ]]
 then
-  >&2 echo "Usage: ./starsolo_auto.sh <sample_tag>"
+  >&2 echo "Usage: ./starsolo_10x_auto.sh <sample_tag>"
   >&2 echo "(make sure you set the correct REF, FQDIR, and SORTEDBAM/NOBAM variables)"
   exit 1
 fi
 
-CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ### change to the directory with fastq files/folders
+CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
+REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
+WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
+
 ## choose one of the two otions, depending on whether you need a BAM file 
 #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
 BAM="--outSAMtype None"
 
-###################### DONT CHANGE OPTIONS BELOW THIS LINE ###########################
+###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################
+
+if [[ `which samtools` == "" || `which seqtk` == "" || `which STAR` == "" ]]
+then
+  echo "ERROR: Please make sure you have STAR (v2.7.9a or above), samtools, and seqtk installed and available in PATH!"
+  exit 1
+fi
 
 mkdir $TAG && cd $TAG
 
@@ -59,46 +67,41 @@ R1LEN=""
 R2LEN=""
 R1DIS=""
 
-## depending on whether the files are archived or not,  
+
+## randomly subsample 200k reads - let's hope there are at least this many (there should be):
+seqtk sample -s100 $R1F 200000 > test.R1.fastq &
+seqtk sample -s100 $R2F 200000 > test.R2.fastq &
+wait
+
+## see if the original fastq files are archived: 
 if [[ `find $FQDIR/* | grep $TAG | grep "\.gz$"` != "" ]]
 then  
   GZIP="--readFilesCommand zcat"
-  NBC1=`zcat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-april-2014_rc.txt | wc -l`
-  NBC2=`zcat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-august-2016.txt | wc -l`
-  NBC3=`zcat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/3M-february-2018.txt | wc -l`
-  NBCA=`zcat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-arc-v1.txt | wc -l`
-  R1LEN=`zcat $R1F | awk 'NR%4==2' | head -n1000 | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
-  R2LEN=`zcat $R2F | awk 'NR%4==2' | head -n1000 | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
-  R1DIS=`zcat $R1F | awk 'NR%4==2' | head -n1000 | awk '{print length($0)}' | sort | uniq -c | wc -l`
-  zcat $R1F | head -n 100000 > test.R1.fastq
-  zcat $R2F | head -n 100000 > test.R2.fastq 
-else 
-  NBC1=`cat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-april-2014_rc.txt | wc -l`
-  NBC2=`cat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-august-2016.txt | wc -l`
-  NBC3=`cat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/3M-february-2018.txt | wc -l`
-  NBCA=`cat $R1F | awk 'NR%4==2' | grep -v N | head -n10000 | grep -F -f /nfs/cellgeni/STAR/whitelists/737K-arc-v1.txt | wc -l`
-  R1LEN=`cat $R1F | awk 'NR%4==2' | head -n1000 | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
-  R2LEN=`cat $R2F | awk 'NR%4==2' | head -n1000 | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
-  R1DIS=`cat $R1F | awk 'NR%4==2' | head -n1000 | awk '{print length($0)}' | sort | uniq -c | wc -l`
-  cat $R1F | head -n 100000 > test.R1.fastq
-  cat $R2F | head -n 100000 > test.R2.fastq 
 fi
 
+NBC1=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-april-2014_rc.txt | wc -l`
+NBC2=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-august-2016.txt | wc -l`
+NBC3=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/3M-february-2018.txt | wc -l`
+NBCA=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-arc-v1.txt | wc -l`
+R1LEN=`cat test.R1.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
+R2LEN=`cat test.R2.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
+R1DIS=`cat test.R1.fastq | awk 'NR%4==2' | awk '{print length($0)}' | sort | uniq -c | wc -l`
+
 ## elucidate the right barcode whitelist to use. Grepping out N saves us some trouble. Note the special list for multiome experiments (737K-arc-v1.txt):
-if (( $NBC2 > 5000 )) 
+if (( $NBC2 > 100000 )) 
 then 
-  BC=/nfs/cellgeni/STAR/whitelists/737K-august-2016.txt
-elif (( $NBC3 > 5000 ))
+  BC=$WL/737K-august-2016.txt
+elif (( $NBC3 > 100000 ))
 then
-  BC=/nfs/cellgeni/STAR/whitelists/3M-february-2018.txt
-elif (( $NBCA > 5000 ))
+  BC=$WL/3M-february-2018.txt
+elif (( $NBCA > 100000 ))
 then
-  BC=/nfs/cellgeni/STAR/whitelists/737K-arc-v1.txt
-elif (( $NBC1 > 5000 )) 
+  BC=$WL/737K-arc-v1.txt
+elif (( $NBC1 > 100000 )) 
 then
-  BC=/nfs/cellgeni/STAR/whitelists/737K-april-2014_rc.txt
+  BC=$WL/737K-april-2014_rc.txt
 else 
-  >&2 echo "ERROR: No whitelist has matched first 10000 barcodes!"
+  >&2 echo "ERROR: No whitelist has matched a random selection of 200,000 barcodes!"
   exit 1
 fi 
 
@@ -114,9 +117,9 @@ elif (( $R1LEN < 24 ))
 then
   >&2 echo "ERROR: Read 1 (barcode) is less than 24 bp in length. Please check the fastq files."
   exit 1
-elif (( $R2LEN < 50 )) 
+elif (( $R2LEN < 40 )) 
 then
-  >&2 echo "ERROR: Read 2 (biological read) is less than 50 bp in length. Please check the fastq files."
+  >&2 echo "ERROR: Read 2 (biological read) is less than 40 bp in length. Please check the fastq files."
   exit 1
 fi
 
@@ -126,7 +129,7 @@ then
   PAIRED=True
   UMILEN=10
   CBLEN=16
-elif (( $NBC1 > 5000 )) 
+elif (( $NBC1 > 100000 )) 
 then
   CBLEN=14
   UMILEN=$((R1LEN-14))
@@ -144,10 +147,12 @@ STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn test.R2.fastq test.R1.fas
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
      --soloFeatures Gene --soloOutFileNames test_strand/ features.tsv barcodes.tsv matrix.mtx &> /dev/null 
-rm test.R1.fastq test.R2.fastq
 
-GENEPCT=`grep "Reads Mapped to Gene: Unique Gene" test_strand/Gene/Summary.csv | awk -F "," '{printf "%d\n",$2*100}'`
-if (( $GENEPCT < 10 )) 
+## the following is needed in case of bad samples: when a low fraction of reads come from mRNA, experiment will look falsely reverse-stranded
+UNIQFRQ=`grep "Reads Mapped to Genome: Unique," test_strand/Gene/Summary.csv | awk -F "," '{print $2}'`
+GENEPCT=`grep "Reads Mapped to Gene: Unique Gene" test_strand/Gene/Summary.csv | awk -F "," -v v=$UNIQFRQ '{printf "%d\n",$2*100/v}'`
+
+if (( $GENEPCT < 20 )) 
 then
   STRAND=Reverse
 fi
@@ -156,7 +161,7 @@ fi
 if [[ $STRAND == "Forward" && $PAIRED == "True" ]]
 then
   PAIRED=False
-  if [[ $BC == "/nfs/cellgeni/STAR/whitelists/3M-february-2018.txt" ]] 
+  if [[ $BC == "$WL/3M-february-2018.txt" ]] 
   then
     UMILEN=12
   fi
@@ -166,7 +171,7 @@ echo "Done setting up the STARsolo run; here are final processing options:"
 echo "============================================================================="
 echo "Sample: $TAG"
 echo "Paired-end mode: $PAIRED"
-echo "Strand (Forward = 3', Reverse = 5'): $STRAND"
+echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads same strand as gene: $GENEPCT"
 echo "CB whitelist: $BC"
 echo "CB length: $CBLEN"
 echo "UMI length: $UMILEN"
@@ -183,13 +188,13 @@ then
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloCBstart 1 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand Forward \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --outFilterScoreMin 30 \
-     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
 else 
   STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand $STRAND \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
-     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
 fi
 
 ## index the BAM file

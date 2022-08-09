@@ -7,19 +7,26 @@
 TAG=$1
 if [[ $TAG == "" ]]
 then
-  >&2 echo "Usage: ./starsolo_auto.sh <sample_tag>"
+  >&2 echo "Usage: ./starsolo_dropseq.sh <sample_tag>"
   >&2 echo "(make sure you set the correct REF, FQDIR, and SORTEDBAM/NOBAM variables)"
   exit 1
 fi
 
-CPUS=16      ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-REF=/nfs/cellgeni/STAR/human/2020A/index  ## choose the appropriate reference 
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-1258/fastq_HCA_Dropseq  ### change to the directory with fastq files/folders
-## choose one of the two otions, depending on whether you need a BAM file 
-BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
-#BAM="--outSAMtype None"
+CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
+REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
 
-###################### DONT CHANGE OPTIONS BELOW THIS LINE ###########################
+## choose one of the two otions, depending on whether you need a BAM file 
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
+BAM="--outSAMtype None"
+
+###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################
+
+if [[ `which samtools` == "" || `which STAR` == "" ]]
+then
+  echo "ERROR: Please make sure you have STAR (v2.7.9a or above), samtools, and seqtk installed and available in PATH!"
+  exit 1
+fi
 
 mkdir $TAG && cd $TAG
 
@@ -52,6 +59,12 @@ fi
 STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Simple --soloCBwhitelist None --soloCBstart 1 --soloCBlen 12 --soloUMIstart 13 --soloUMIlen 8 --soloBarcodeReadLength 0 \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+
+## index the BAM file
+if [[ -s Aligned.sortedByCoord.out.bam ]]
+then
+  samtools index -@16 Aligned.sortedByCoord.out.bam
+fi
 
 ## finally, let's gzip all outputs
 cd output

@@ -1,9 +1,16 @@
 #!/bin/bash
 
 TAG=$1
+if [[ $TAG == "" ]]
+then
+  >&2 echo "Usage: ./star_rsem_bulk.sh <sample_tag>"
+  >&2 echo "(make sure you set the correct SREF, RREF, FQDIR, and PAIRED/STRAND/CPUS variables)"
+  exit 1
+fi
+
 SREF=/nfs/cellgeni/STAR/human/2020A/index
 RREF=/nfs/cellgeni/STAR/human/2020A/2020A_rsem
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-bulkseq/tic-1333/fastqs
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-bulkseq/tic-XXX/fastqs
 PAIRED="--paired-end"
 STRAND="--forward-prob 0"
 CPUS=16

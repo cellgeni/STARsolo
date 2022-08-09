@@ -16,6 +16,9 @@ CPUS=16                                                                ## typica
 REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
 WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
 FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
+ADAPTER=GAGTGATTGCTTGTGACGCCTT                                         ## these could be GAGTGATTGCTTGTGACGCCTT or GAGTGATTGCTTGTGACGCCAA, as far as I've seen 
+BC1=$WL/inDrops_Ambrose2_bc1.txt
+BC2=$WL/inDrops_Ambrose2_bc2.txt
 
 ## choose one of the two otions, depending on whether you need a BAM file 
 #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
@@ -29,11 +32,7 @@ then
   exit 1
 fi
 
-
 mkdir $TAG && cd $TAG
-
-BC1=$WL/inDrops_Ambrose2_bc1.txt
-BC2=$WL/inDrops_Ambrose2_bc2.txt
 
 R1=""
 R2=""
@@ -61,8 +60,9 @@ then
   GZIP="--readFilesCommand zcat"
 fi
 
+## increased soloAdapterMismatchesNmax to 3, as per discussions in STAR issues
 STAR  --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
-     --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 --soloAdapterSequence GAGTGATTGCTTGTGACGCCTT  \
+     --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 --soloAdapterSequence $ADAPTER  \
      --soloAdapterMismatchesNmax 3 --soloCBmatchWLtype 1MM --soloCBposition 0_0_2_-1 3_1_3_8 --soloUMIposition 3_9_3_14 \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
 

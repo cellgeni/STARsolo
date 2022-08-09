@@ -157,7 +157,7 @@ then
   STRAND=Reverse
 fi
 
-## finally, if paired-end experiment turned out to be 3', process it as single-end: 
+## finally, if paired-end experiment turned out to be 3' (yes, they do exist!), process it as single-end: 
 if [[ $STRAND == "Forward" && $PAIRED == "True" ]]
 then
   PAIRED=False

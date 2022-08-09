@@ -38,9 +38,9 @@ All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/
 
 ## Processing scRNA-seq with STARsolo
 
-### 10X: reprodicing `Cell Ranger` v4 and above (but much faster)
+### 10X: reproducing `Cell Ranger` v4 and above (but much faster)
 
-Full scripts with the latest settings are available in `/scripts` (there are several scripts according to 10x chemistry version; e.g. `starsolo_3p_v3.sh` should be used for v3 of 3' 10x, while `starsolo_5p_v2.sh` should be used for v2 of 5'. The scripts contain *many* options that frequently change; some of which will be explained below. In general, commands are tuned in such way that the results with be very close to those of `Cell Ranger` v4 and above. 
+Full scripts with the latest settings are available in `/scripts` (there are several scripts according to 10x chemistry version; e.g. `starsolo_3p_v3.sh` should be used for v3 of 3' 10x, while `starsolo_5p_v2.sh` should be used for v2 of 5'. The scripts contain *many* options that frequently change; some of which will be explained below. In general, commands are tuned in such way that the results will be very close to those of `Cell Ranger` v4 and above. 
 
 Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
 
@@ -94,15 +94,15 @@ STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand
      --soloFeatures Gene GeneFull --soloOutFileNames output/ genes.tsv barcodes.tsv matrix.mtx
 ```
 
-Often, SMART-seq2 reads can benefit from trimming adapters, which can be turned on using `--clip3pAdapterSeq <3' adapter sequence>` option. Alternatively, `bbduk.sh` can be used to trim adapters from reads prior to the alignment and quantification.  
+Often, SMART-seq2 reads can benefit from trimming adapters, which can be turned on using `--clip3pAdapterSeq <3' adapter sequence>` option. Alternatively, `/scripts/bbduk.sh` can be used to trim adapters from reads prior to the alignment and quantification (this is the preferred option).  
 
 ### Counting the multimapping reads
 
 Default approach used by `Cell Ranger` (and `STARsolo` scripts above) is to discard all reads that map to multiple genomic locations with equal mapping quality. This approach creates a bias in gene expression estimation. Pseudocount-based methods correctly quantify multimapping reads, but generate false counts due to pseudo-alignment errors. These issues are described in good detail [here](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1). 
 
-If you would like to process multimappers, add the following options: `--soloMultiMappers Uniform EM` (on by default in v3.0+ of these scripts). This will generate an extra matrix in the `/raw` output folders. There will be non-integer numbers in the matrix because of split reads. If the downstream processing requires integers, you can round with a tool of your liking (e.g. `awk`). 
+If you would like to process multimappers, add the following options: `--soloMultiMappers Uniform EM` (or simply `--soloMultiMappers EM`; this is on by default in v3.0+ of these scripts). This will generate an extra matrix in the `/raw` output folders. There will be non-integer numbers in the matrix because of split reads. If the downstream processing requires integers, you can round with a tool of your liking (e.g. `awk`). 
 
-As of `STAR` v2.7.10a, multimapper counting still does not work for SMART-seq2 or bulk RNA-seq processing. 
+As of `STAR` v2.7.10a, **multimapper counting still does not work for SMART-seq2 or bulk RNA-seq processing**. 
 
 ### Running STARsolo on other scRNA-seq platforms 
 

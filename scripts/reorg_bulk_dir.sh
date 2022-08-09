@@ -3,9 +3,17 @@
 ## change sample tag for reuse!
 ## reorganize directories for bulk RNA-seq STAR+rsem processing 
 
+TAG=$1
+
+if [[ $TAG == "" ]]
+then
+  >&2 echo "Usage: ./reorg_bulk_dir.sh <sample_pattern>"
+  exit 1
+fi
+
 mkdir counts rsem_gene rsem_tran
 
-for i in PR*
+for i in $TAG*
 do
   echo "Processing sample $i - moving files.."
   cp $i/*genes.results rsem_gene

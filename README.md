@@ -14,6 +14,10 @@ There's also Martin Prete's awesome `icpc`-compiled version of `STAR` that's bei
 
 `RSEM` of version 1.3.3 should be installed using bioconda in a separate virtual environment. 
 
+### Docker
+
+We also have a Dockerfile which builds with specific versions of all the tools used. Once the container is built you can do `cat /versions.txt` and it will show the versions of the tools in the container. 
+
 ## Reference genome and annotation
 
 The issues of reference genome and annotation used for **mouse** and **human** scRNA-seq experiments are described [here](https://www.singlecellcourse.org/processing-raw-scrna-seq-sequencing-data-from-reads-to-a-count-matrix.html) in some detail. 

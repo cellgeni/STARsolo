@@ -48,7 +48,7 @@ RUN wget https://github.com/deweylab/RSEM/archive/refs/tags/v${rsem_version}.tar
     make && \
     cd / && rm v${rsem_version}.tar.gz
 
-ENV PATH="${PATH}:/opt/STAR-${star_version}/source:/opt/seqtk:/opt/bbmap:/opt/RSEM-${rsem_version}"     
+ENV PATH="${PATH}:/opt/STAR-${star_version}/source:/opt/seqtk:/opt/bbmap:/opt/RSEM-${rsem_version}:/opt/samtools-${samtools_version}"     
 
 #Saving Software Versions to a file
 RUN echo "STAR version: ${star_version}" >> versions.txt && \

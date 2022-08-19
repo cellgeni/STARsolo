@@ -1,6 +1,6 @@
 #!/bin/bash 
 
-echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tSpecies\tPaired\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
+echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tWL\tSpecies\tPaired\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
 
 
 for i in *
@@ -21,6 +21,22 @@ do
     then
       REF="Mouse"
     fi
+
+    WL="Undef"
+    if [[ `grep "^soloCBwhitelist" $i/Log.out | tail -n1 | grep 3M-february-2018.txt` != "" ]]
+    then
+      WL="v3"
+    elif [[ `grep "^soloCBwhitelist" $i/Log.out | tail -n1 | grep 737K-august-2016.txt` != "" ]]
+    then
+      WL="v2"
+    elif [[ `grep "^soloCBwhitelist" $i/Log.out | tail -n1 | grep 737K-april-2014_rc.txt` != "" ]]
+    then
+      WL="v1"
+    elif [[ `grep "^soloCBwhitelist" $i/Log.out | tail -n1 | grep 737K-arc-v1.txt` != "" ]]
+    then
+      WL="arc"
+    fi
+    
 
     R1=`grep "Number of Reads," $i/output/Gene/Summary.csv | awk -F "," '{print $2}'`
     B=`grep "Reads With Valid Barcodes," $i/output/Gene/Summary.csv | awk -F "," '{print $2}'`
@@ -46,6 +62,6 @@ do
       ## since read order for PE processing is R1 R2 (it's R2 R1 for regular single-end 10X)
       ST="Reverse"
     fi
-    echo -e "$i\t$R1\t$R2\t$CF\t$R3\t$C\t$GC\t$B\t$REF\t$PAIRED\t$ST\t$G1\t$G2\t$E1\t$E2\t$F1\t$F2"
+    echo -e "$i\t$R1\t$R2\t$CF\t$R3\t$C\t$GC\t$B\t$WL\t$REF\t$PAIRED\t$ST\t$G1\t$G2\t$E1\t$E2\t$F1\t$F2"
   fi
 done

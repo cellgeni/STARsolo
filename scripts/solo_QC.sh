@@ -1,11 +1,17 @@
 #!/bin/bash 
 
-echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
+echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tPaired\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
+
 
 for i in *
 do
   if [[ -d $i && -d $i/output ]]
   then 
+    PAIRED="Single"
+    if [[ `grep "clip5pNbases 39 0" $i/Log.out` != "" ]]
+    then
+      PAIRED="Paired"
+    fi
     R1=`grep "Number of Reads," $i/output/Gene/Summary.csv | awk -F "," '{print $2}'`
     B=`grep "Reads With Valid Barcodes," $i/output/Gene/Summary.csv | awk -F "," '{print $2}'`
     G1=`grep "Reads Mapped to Genome: Unique+Multiple," $i/output/Gene/Summary.csv | awk -F "," '{print $2}'`
@@ -23,7 +29,10 @@ do
     if [[ $ST == "" ]]
     then
       ST="Undef"
+    elif [[ $PAIRED == "Paired" ]]
+    then
+      ST="Reverse"
     fi
-    echo -e "$i\t$R1\t$R2\t$CF\t$R3\t$C\t$GC\t$B\t$ST\t$G1\t$G2\t$E1\t$E2\t$F1\t$F2"
+    echo -e "$i\t$R1\t$R2\t$CF\t$R3\t$C\t$GC\t$B\t$PAIRED\t$ST\t$G1\t$G2\t$E1\t$E2\t$F1\t$F2"
   fi
 done

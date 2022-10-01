@@ -15,7 +15,7 @@ fi
 CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
 WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
+FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs
 
 ## choose one of the two otions, depending on whether you need a BAM file 
 #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
@@ -146,11 +146,11 @@ STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn test.R2.fastq test.R1.fas
      --soloUMIlen $UMILEN --soloStrand Forward \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
-     --soloFeatures Gene --soloOutFileNames test_strand/ features.tsv barcodes.tsv matrix.mtx &> /dev/null 
+     --soloFeatures Gene GeneFull --soloOutFileNames test_strand/ features.tsv barcodes.tsv matrix.mtx &> /dev/null 
 
 ## the following is needed in case of bad samples: when a low fraction of reads come from mRNA, experiment will look falsely reverse-stranded
-UNIQFRQ=`grep "Reads Mapped to Genome: Unique," test_strand/Gene/Summary.csv | awk -F "," '{print $2}'`
-GENEPCT=`grep "Reads Mapped to Gene: Unique Gene" test_strand/Gene/Summary.csv | awk -F "," -v v=$UNIQFRQ '{printf "%d\n",$2*100/v}'`
+UNIQFRQ=`grep "Reads Mapped to Genome: Unique," test_strand/GeneFull/Summary.csv | awk -F "," '{print $2}'`
+GENEPCT=`grep "Reads Mapped to GeneFull: Unique GeneFull" test_strand/GeneFull/Summary.csv | awk -F "," -v v=$UNIQFRQ '{printf "%d\n",$2*100/v}'`
 
 if (( $GENEPCT < 20 )) 
 then
@@ -172,7 +172,7 @@ echo "==========================================================================
 echo "Sample: $TAG"
 echo "Paired-end mode: $PAIRED"
 echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads same strand as gene: $GENEPCT"
-echo "CB whitelist: $BC"
+echo "CB whitelist: $BC, matches out of 200,000: $NBC3 (v3), $NBC2 (v2), $NBC1 (v1), $NBCA (multiome) "
 echo "CB length: $CBLEN"
 echo "UMI length: $UMILEN"
 echo "GZIP: $GZIP"
@@ -188,13 +188,13 @@ then
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloCBstart 1 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand Forward \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --outFilterScoreMin 30 \
-     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
+     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM --outReadsUnmapped Fastx
 else 
   STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand $STRAND \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
-     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
+     --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM --outReadsUnmapped Fastx
 fi
 
 ## index the BAM file
@@ -204,6 +204,9 @@ then
 fi
 
 ## finally, let's gzip all outputs
+gzip Unmapped.out.mate1 &
+gzip Unmapped.out.mate2 &
+
 cd output
 for i in Gene/raw Gene/filtered GeneFull/raw GeneFull/filtered Velocyto/raw Velocyto/filtered
 do 

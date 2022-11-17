@@ -16,7 +16,7 @@ fi
 CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
 WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-starsolo/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
+FQDIR=/lustre/scratch126/cellgen/cellgeni/tickets/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
 CBLEN=8
 UMILEN=8
 

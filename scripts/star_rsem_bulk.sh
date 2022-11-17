@@ -10,7 +10,7 @@ fi
 
 SREF=/nfs/cellgeni/STAR/human/2020A/index
 RREF=/nfs/cellgeni/STAR/human/2020A/2020A_rsem
-FQDIR=/lustre/scratch117/cellgen/cellgeni/TIC-bulkseq/tic-XXX/fastqs
+FQDIR=/lustre/scratch126/cellgen/cellgeni/tickets/tic-XXX/fastqs
 PAIRED="--paired-end"
 STRAND="--forward-prob 0"
 CPUS=16

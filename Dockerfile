@@ -2,7 +2,7 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG star_version=2.7.10a
+ARG star_version=2.7.10a_alpha_220818
 ARG samtools_version=1.15.1
 ARG bbmap_version=38.97
 ARG rsem_version=1.3.3
@@ -48,7 +48,7 @@ RUN wget https://github.com/deweylab/RSEM/archive/refs/tags/v${rsem_version}.tar
     make && \
     cd / && rm v${rsem_version}.tar.gz
 
-ENV PATH="${PATH}:/opt/STAR-${star_version}/source:/opt/seqtk:/opt/bbmap:/opt/RSEM-${rsem_version}:/opt/samtools-${samtools_version}"     
+ENV PATH="${PATH}:/opt/STAR-${star_version}/source:/opt/seqtk:/opt/bbmap:/opt/RSEM-${rsem_version}"     
 
 #Saving Software Versions to a file
 RUN echo "STAR version: ${star_version}" >> versions.txt && \

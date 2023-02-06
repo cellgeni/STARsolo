@@ -10,7 +10,7 @@ ARG rsem_version=1.3.3
 #Install OS packages
 RUN apt-get update && apt-get -y --no-install-recommends -qq install \
     wget gcc build-essential software-properties-common libz-dev \
-    git libncurses5-dev libbz2-dev liblzma-dev default-jre
+    git libncurses5-dev libbz2-dev liblzma-dev default-jre bsdmainutils
 
 #Install STAR
 RUN wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${star_version}.tar.gz && \

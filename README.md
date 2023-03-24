@@ -1,4 +1,4 @@
-# Wrapper scripts for using `STARsolo` with various types of single cell RNA-seq
+# Wrapper scripts for `STARsolo` scRNA-seq pipeline
 
 These are the scripts used for CellGenIT for uniform processing of scRNA-seq - both 10X and quite a few other types (see below for supported platforms). All listed methods use [STAR](https://github.com/alexdobin/STAR) aligner to align reads to the reference genome. 
 
@@ -33,6 +33,9 @@ Once you have downloaded the needed fasta and GTF files, and applied the necessa
 ### Pre-made reference location
 
 All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/`. Barcode whitelist files are located in `/nfs/cellgeni/STAR/whitelists`. 
+## Resource requirements 
+
+By default, all processing is done using 16 CPUs and 128 Gb of RAM. Using the latest settings, you _should_ be able to process most 10x experiments with 64 Gb of RAM even when you need a sorted BAM output. Farm typically has ~8 Gb of RAM per core, so 8 CPUs/64 Gb RAM, or 16 CPUs/128 Gb RAM is probably optimal. 
 
 ## Processing scRNA-seq with STARsolo
 

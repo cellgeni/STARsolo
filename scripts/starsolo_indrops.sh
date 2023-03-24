@@ -1,36 +1,36 @@
 #!/bin/bash -e 
 
-## v3.0 of STARsolo wrappers is set up to guess the chemistry automatically
-## newest version of the script uses STAR v2.7.9a with EM multimapper processing in STARsolo (but it's not on by default; turn this on with --soloMultiMappers EM)
-## velocyto extra processing also became unnecessary 
+## v3.1 of STARsolo wrappers is set up to guess the chemistry automatically
+## newest version of the script uses STAR v2.7.10a with EM multimapper processing 
+## in STARsolo which on by default; the extra matrix can be found in /raw subdir 
 
-TAG=$1
-if [[ $TAG == "" ]]
+SIF="/nfs/cellgeni/singularity/images/starsolo_2-7-10a-alpha-220818_samtools_1-15-1_seqtk-1-13_bbmap_38-97_RSEM-1-3-3.sif"
+CMD="singularity run --nv --bind /nfs,/lustre $SIF"
+
+FQDIR=$1
+TAG=$2
+
+if [[ $FQDIR == "" || $TAG == "" ]]
 then
-  >&2 echo "Usage: ./starsolo_indrops.sh <sample_tag>"
-  >&2 echo "(make sure you set the correct REF, FQDIR, and SORTEDBAM/NOBAM variables)"
+  >&2 echo "Usage: ./starsolo_indrops.sh <fastq_dir> <sample_id>"
+  >&2 echo "(make sure you set the correct REF, WL, ADAPTER, BC1/BC2, and BAM variables below)"
   exit 1
 fi
 
+FQDIR=`readlink -f $FQDIR`
 CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
 REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
 WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
-FQDIR=/lustre/scratch126/cellgen/cellgeni/tickets/tic-XXX/fastqs  ## directory with your fastq files - can be in subdirs, just make sure tag is unique and greppable (e.g. no Sample1 and Sample 10). 
-ADAPTER=GAGTGATTGCTTGTGACGCCTT                                         ## these could be GAGTGATTGCTTGTGACGCCTT or GAGTGATTGCTTGTGACGCCAA, as far as I've seen 
+
+ADAPTER=GAGTGATTGCTTGTGACGCCTT                                         ## these could be GAGTGATTGCTTGTGACGCCTT or GAGTGATTGCTTGTGACGCCAA 
 BC1=$WL/inDrops_Ambrose2_bc1.txt
 BC2=$WL/inDrops_Ambrose2_bc2.txt
 
 ## choose one of the two otions, depending on whether you need a BAM file 
-#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingThreadN 2 --limitBAMsortRAM 120000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB GX GN"
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB CR CY UR UY GX GN"
 BAM="--outSAMtype None"
 
 ###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################
-
-if [[ `which samtools` == "" || `which STAR` == "" ]]
-then
-  echo "ERROR: Please make sure you have STAR (v2.7.9a or above) and samtools are installed and available in PATH!"
-  exit 1
-fi
 
 mkdir $TAG && cd $TAG
 
@@ -61,7 +61,7 @@ then
 fi
 
 ## increased soloAdapterMismatchesNmax to 3, as per discussions in STAR issues
-STAR  --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
+$CMD STAR  --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 --soloAdapterSequence $ADAPTER  \
      --soloAdapterMismatchesNmax 3 --soloCBmatchWLtype 1MM --soloCBposition 0_0_2_-1 3_1_3_8 --soloUMIposition 3_9_3_14 \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
@@ -78,7 +78,7 @@ done
 ## index the BAM file
 if [[ -s Aligned.sortedByCoord.out.bam ]]
 then
-  samtools index -@16 Aligned.sortedByCoord.out.bam
+  $CMD samtools index -@16 Aligned.sortedByCoord.out.bam &
 fi
 
 wait

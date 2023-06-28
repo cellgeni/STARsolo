@@ -41,7 +41,7 @@ By default, all processing is done using 16 CPUs and 128 Gb of RAM. Using the la
 
 ### 10X: reproducing `Cell Ranger` v4 and above (but much faster)
 
-Full scripts with the latest settings are available in `/scripts` (there are several scripts according to 10x chemistry version; e.g. `starsolo_3p_v3.sh` should be used for v3 of 3' 10x, while `starsolo_5p_v2.sh` should be used for v2 of 5'. The scripts contain *many* options that frequently change; some of which will be explained below. In general, commands are tuned in such way that the results will be very close to those of `Cell Ranger` v4 and above. 
+The current relevant wrapper script for all 10X scRNA-seq processing is called `starsolo_10x_auto.sh`. The scripts contain *many* options that sometimes change; some of which will be explained below. In general, commands are tuned in such way that the results will be very close to those of `Cell Ranger` v4 and above. 
 
 Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
 
@@ -62,11 +62,11 @@ Below are the explanations for some of the options (note that 5' experiments **a
 
 </div>
 
-  - `--soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30` are options that define UMI collapsing, barcode collapsing, and read clipping algorithms that are closest to ones used by `Cell Ranger`; 
+  - `--soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30` are options that define UMI collapsing, barcode collapsing, and read clipping algorithms that are closest to ones used by `Cell Ranger` v4+; 
   - `--soloCellFilter EmptyDrops_CR` specifies the cell filtering algorithm used in [EmptyDrops](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html), which is the default algorithm in later versions of `Cell Ranger`; 
   - `--soloFeatures Gene GeneFull Velocyto` output conventional (exon-only) UMI counts, as well as exon+intron UMI counts (analog of `Cell Ranger` premrna option), as well as matrices preprocessed for `Velocyto`; 
-  - `--soloMultiMappers EM` is to count multimappers (on by default in v3.0+ of these scripts; does not influence the main output, but creates an additional matrix in `/raw` subdir of `Gene` and `GeneFull`); 
-  - `--readFilesCommand zcat` is used if your input fastq files are gzipped;
+  - `--soloMultiMappers EM` is to count multimappers (on by default in v3.0+ of our wrapper scripts; does not influence the main output, but creates an additional matrix in `/raw` subdir of `Gene` and `GeneFull`); 
+  - `--readFilesCommand zcat` is used if your input fastq files are gzipped (auto-deteted);
   - `--outReadsUnmapped Fastx` to output the unmapped reads that can be used for metagenomic analysis; 
   - options grouped as `$SORTEDBAM` should be used if you need a genomic bam file; otherwise, use `$NOBAM`.
 
@@ -103,9 +103,10 @@ For plate-based methods that don't use UMIs (such as [SMART-Seq and SMART-Seq2](
 Example of a script used to process Smart-seq2 data can be found in `/scripts/starsolo_ss2.sh`. Key parameters that could be adjusted are `--outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3`; the higher they are, the less permissive is the alignment (we use default settings usually). Lower values can help you "rescue" a larger proportion of reads with high adapter content (see below for adapter trimming). Actual `STAR` command being run:
 
 ```bash
-STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX --readFilesCommand zcat $SORTEDBAM \
+STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX $GZIP $BAM \
      --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv \
      --soloUMIdedup Exact --soloStrand Unstranded \
+     --limitOutSJcollapsed 10000000 --soloCellFilter None \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
 ```
 

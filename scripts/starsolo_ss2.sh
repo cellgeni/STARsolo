@@ -41,6 +41,7 @@ fi
 ## alignment often works well without clipping; if not, --clip3pAdapterSeq <3' adapter sequence> option can be added, or separate trimming using bbduk.sh works well too
 $CMD STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX $GZIP $BAM \
      --soloType SmartSeq --readFilesManifest $TSV --soloUMIdedup Exact --soloStrand Unstranded \
+     --limitOutSJcollapsed 10000000 --soloCellFilter None \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
 
 ## index the BAM file
@@ -50,7 +51,7 @@ then
 fi
 
 cd output
-for i in Gene/raw Gene/filtered GeneFull/raw GeneFull/filtered Velocyto/raw Velocyto/filtered
+for i in Gene/raw GeneFull/raw
 do 
   cd $i; for j in *; do gzip $j & done
   cd ../../

@@ -1,6 +1,6 @@
 #!/bin/bash -e 
 
-## v3.1 of STARsolo wrappers is set up to guess the chemistry automatically
+## v3.2 of STARsolo wrappers is set up to guess the chemistry automatically
 ## newest version of the script uses STAR v2.7.10a with EM multimapper processing 
 ## in STARsolo which on by default; the extra matrix can be found in /raw subdir 
 
@@ -34,18 +34,18 @@ mkdir $TAG && cd $TAG
 ## the command below will generate a comma-separated list for each read
 R1=""
 R2=""
-if [[ `find $FQDIR/* | grep $TAG | grep "_1\.fastq"` != "" ]]
+if [[ `find $FQDIR/* | grep $TAG | grep "_1\.f.*q"` != "" ]]
 then 
-  R1=`find $FQDIR/* | grep $TAG | grep "_1\.fastq" | sort | tr '\n' ',' | sed "s/,$//g"`
-  R2=`find $FQDIR/* | grep $TAG | grep "_2\.fastq" | sort | tr '\n' ',' | sed "s/,$//g"`
-elif [[ `find $FQDIR/* | grep $TAG | grep "R1\.fastq"` != "" ]]
+  R1=`find $FQDIR/* | grep $TAG | grep "_1\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+  R2=`find $FQDIR/* | grep $TAG | grep "_2\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+elif [[ `find $FQDIR/* | grep $TAG | grep "R1\.f.*q"` != "" ]]
 then
-  R1=`find $FQDIR/* | grep $TAG | grep "R1\.fastq" | sort | tr '\n' ',' | sed "s/,$//g"`
-  R2=`find $FQDIR/* | grep $TAG | grep "R2\.fastq" | sort | tr '\n' ',' | sed "s/,$//g"`
-elif [[ `find $FQDIR/* | grep $TAG | grep "_R1_.*\.fastq"` != "" ]]
+  R1=`find $FQDIR/* | grep $TAG | grep "R1\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+  R2=`find $FQDIR/* | grep $TAG | grep "R2\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+elif [[ `find $FQDIR/* | grep $TAG | grep "_R1_.*\.f.*q"` != "" ]]
 then
-  R1=`find $FQDIR/* | grep $TAG | grep "_R1_" | sort | tr '\n' ',' | sed "s/,$//g"`
-  R2=`find $FQDIR/* | grep $TAG | grep "_R2_" | sort | tr '\n' ',' | sed "s/,$//g"`
+  R1=`find $FQDIR/* | grep $TAG | grep "_R1_.*\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+  R2=`find $FQDIR/* | grep $TAG | grep "_R2_.*\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
 else 
   >&2 echo "ERROR: No appropriate fastq files were found! Please check file formatting, and check if you have set the right FQDIR."
   exit 1
@@ -78,26 +78,26 @@ then
   GZIP="--readFilesCommand zcat"
 fi
 
-NBC1=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-april-2014_rc.txt | wc -l`
-NBC2=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-august-2016.txt | wc -l`
-NBC3=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/3M-february-2018.txt | wc -l`
-NBCA=`cat test.R1.fastq | awk 'NR%4==2' | grep -F -f $WL/737K-arc-v1.txt | wc -l`
+NBC1=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-14 | grep -F -f $WL/737K-april-2014_rc.txt | wc -l`
+NBC2=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-16 | grep -F -f $WL/737K-august-2016.txt | wc -l`
+NBC3=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-16 | grep -F -f $WL/3M-february-2018.txt | wc -l`
+NBCA=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-16 | grep -F -f $WL/737K-arc-v1.txt | wc -l`
 R1LEN=`cat test.R1.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
 R2LEN=`cat test.R2.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
 R1DIS=`cat test.R1.fastq | awk 'NR%4==2' | awk '{print length($0)}' | sort | uniq -c | wc -l`
 
 ## elucidate the right barcode whitelist to use. Grepping out N saves us some trouble. Note the special list for multiome experiments (737K-arc-v1.txt):
-## 80k (out of 200,000) is an empirical number - I've seen <50% barcodes matched to the whitelist, but a number that's < 40% suggests something is very wrong
-if (( $NBC3 > 80000 )) 
+## 50k (out of 200,000) is a modified empirical number - matching only first 14-16 nt makes this more specific
+if (( $NBC3 > 50000 )) 
 then 
   BC=$WL/3M-february-2018.txt
-elif (( $NBC2 > 80000 ))
+elif (( $NBC2 > 50000 ))
 then
   BC=$WL/737K-august-2016.txt
-elif (( $NBCA > 80000 ))
+elif (( $NBCA > 50000 ))
 then
   BC=$WL/737K-arc-v1.txt
-elif (( $NBC1 > 80000 )) 
+elif (( $NBC1 > 50000 )) 
 then
   BC=$WL/737K-april-2014_rc.txt
 else 
@@ -143,7 +143,15 @@ elif [[ $BC == "$WL/737K-april-2014_rc.txt" ]]
 then
   CBLEN=14
   UMILEN=10
-fi 
+fi
+
+## yet another failsafe! Some geniuses managed to sequence v3 10x with a 26bp R1, which also causes STARsolo grief. This fixes it.
+if (( $CBLEN + $UMILEN > $R1LEN ))
+then
+  NEWUMI=$((R1LEN-CBLEN))
+  >&2 echo "WARNING: Read 1 length is less than the sum of appropriate barcode and UMI. Changing UMI setting from $UMILEN to $NEWUMI!"
+  UMILEN=$NEWUMI
+fi
 
 ## finally, see if you have 5' or 3' experiment. I don't know and easier way than to run a test alignment:  
 STRAND=Forward
@@ -210,9 +218,9 @@ then
   $CMD samtools index -@16 Aligned.sortedByCoord.out.bam
 fi
 
-## finally, let's gzip all outputs
-gzip Unmapped.out.mate1 &
-gzip Unmapped.out.mate2 &
+## finally, let's max-CR bzip all unmapped reads with multicore pbzip2 
+pbzip2 -9 -p $CPUS Unmapped.out.mate1
+pbzip2 -9 -p $CPUS Unmapped.out.mate2
 
 ## remove test files 
 rm -rf test.R?.fastq test_strand

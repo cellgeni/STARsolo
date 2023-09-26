@@ -42,13 +42,17 @@ fi
 $CMD STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX $GZIP $BAM \
      --soloType SmartSeq --readFilesManifest $TSV --soloUMIdedup Exact --soloStrand Unstranded \
      --limitOutSJcollapsed 10000000 --soloCellFilter None \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
 
 ## index the BAM file
 if [[ -s Aligned.sortedByCoord.out.bam ]]
 then
   $CMD samtools index -@16 Aligned.sortedByCoord.out.bam
 fi
+
+## max-CR bzip all unmapped reads with multicore pbzip2 
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
 
 cd output
 for i in Gene/raw GeneFull/raw

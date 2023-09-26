@@ -64,8 +64,11 @@ fi
 $CMD STAR  --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 --soloAdapterSequence $ADAPTER  \
      --soloAdapterMismatchesNmax 3 --soloCBmatchWLtype 1MM --soloCBposition 0_0_2_-1 3_1_3_8 --soloUMIposition 3_9_3_14 \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
 
+## max-CR bzip all unmapped reads with multicore pbzip2 
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
 
 ## finally, let's gzip all outputs
 cd output

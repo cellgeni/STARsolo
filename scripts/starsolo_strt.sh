@@ -65,7 +65,11 @@ $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand $STRAND \
      --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
      --limitOutSJcollapsed 10000000 --soloCellFilter None \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
+
+## max-CR bzip all unmapped reads with multicore pbzip2 
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
 
 ## gzip all outputs
 cd output

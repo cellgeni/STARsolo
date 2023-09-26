@@ -56,13 +56,23 @@ fi
 
 $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
      --soloType CB_UMI_Simple --soloCBwhitelist None --soloCBstart 1 --soloCBlen 12 --soloUMIstart 13 --soloUMIlen 8 --soloBarcodeReadLength 0 \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
 
 ## index the BAM file
 if [[ -s Aligned.sortedByCoord.out.bam ]]
 then
   $CMD samtools index -@16 Aligned.sortedByCoord.out.bam
 fi
+
+## index the BAM file
+if [[ -s Aligned.sortedByCoord.out.bam ]]
+then
+  $CMD samtools index -@16 Aligned.sortedByCoord.out.bam
+fi
+
+## max-CR bzip all unmapped reads with multicore pbzip2 
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
+pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
 
 ## finally, let's gzip all outputs
 cd output

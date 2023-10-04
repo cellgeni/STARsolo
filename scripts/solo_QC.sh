@@ -1,11 +1,56 @@
 #!/bin/bash 
 
+## check that STAR temporary dir is removed for all samples, and that archived unmapped reads are created
+>&2 echo "Checking that all STARsolo jobs went to completion .." 
+for i in *
+do
+  if [[ -d $i && -d $i/output && -s $i/Log.final.out ]]
+  then
+    if [[ -d $i/_STARtmp ]]
+    then
+      >&2 echo "WARNING: Sample $i did not run to completion: _STARtmp is still present!" 
+    fi 
+
+    if [[ ! -s $i/Unmapped.out.mate1.bz2 || ! -s $i/Unmapped.out.mate2.bz2 ]]
+    then
+      >&2 echo "WARNING: Unmapped reads (Unmapped.out.mate[1,2].bz2) not found for sample $i!" 
+    fi 
+  fi
+done
+
+
+## check if samples overlap - this is often a sign that something went quite wrong 
+## e.g. starsolo script has chosen wrong reads, or they were swapped during upload, or some lab mix-up
+>&2 echo "Checking potential sample cross-contamination .." 
+for i in *
+do
+  for j in *
+  do
+    if [[ -d $i/output && -s $i/Log.final.out && -d $j/output && -s $j/Log.final.out && $i != $j ]]
+    then
+      N1=`zcat $i/output/Gene/filtered/barcodes.tsv.gz | wc -l`
+      N2=`zcat $j/output/Gene/filtered/barcodes.tsv.gz | wc -l`
+      MIN=`(( $N1 <= $N2 )) && echo $N1 || echo $N2`
+      COMM=`comm -12 <(zcat $i/output/Gene/filtered/barcodes.tsv.gz) <(zcat $j/output/Gene/filtered/barcodes.tsv.gz) | wc -l`
+      PCT=`echo $COMM | awk -v v=$MIN '{printf "%d\n",100*$1/v+0.5}'`
+      if (( $PCT >= 20 )) 
+      then
+        >&2 echo "WARNING: Samples $i ($N1 barcodes) and $j ($N2 barcodes) have $COMM ($PCT%) common barcodes, which is higher than expected by chance! Please investigate .."
+      fi 
+    fi 
+  done
+done
+
+
+## finally, calculate and output STARsolo stats 
+>&2 echo "Extracting STARsolo stats .." 
+>&2 echo 
 echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tWL\tSpecies\tPaired\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
 
 
 for i in *
 do
-  if [[ -d $i && -d $i/output ]]
+  if [[ -d $i && -d $i/output && -s $i/Log.final.out ]]
   then 
     PAIRED="Single"
     if [[ `grep "clip5pNbases 39 0" $i/Log.out` != "" ]]

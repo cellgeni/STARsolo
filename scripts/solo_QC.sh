@@ -107,6 +107,14 @@ do
       ## since read order for PE processing is R1 R2 (it's R2 R1 for regular single-end 10X)
       ST="Reverse"
     fi
+
+		## warn about odd mapping stats; should add few more
+		F2PCT=`echo $F2 | awk '{printf "%d\n",$1*100+0.5}'`
+		if (( $F2PCT <= 20 ))
+		then
+			>&2 echo "WARNING: Sample $i : GeneFull percentage ($F2PCT) is too low! Please make sure the strand-specificity evaluation worked correctly."
+		fi
+
     echo -e "$i\t$R1\t$R2\t$CF\t$R3\t$C\t$GC\t$B\t$WL\t$REF\t$PAIRED\t$ST\t$G1\t$G2\t$E1\t$E2\t$F1\t$F2"
   fi
 done

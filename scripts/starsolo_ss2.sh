@@ -4,7 +4,7 @@
 ## newest version of the script uses STAR v2.7.10a with EM multimapper processing where possible 
 
 SIF="/nfs/cellgeni/singularity/images/starsolo_2-7-10a-alpha-220818_samtools_1-15-1_seqtk-1-13_bbmap_38-97_RSEM-1-3-3.sif"
-CMD="singularity run --nv --bind /nfs,/lustre $SIF"
+CMD="singularity run --bind /nfs,/lustre $SIF"
 
 ## you need to have a manifest file named $TAG.manifest.tsv
 ## with 3 tab-separated columns: 1) full path to read1; 2) full path to read2; 3) cell name
@@ -51,8 +51,9 @@ then
 fi
 
 ## max-CR bzip all unmapped reads with multicore pbzip2 
-pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
-pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
+pbzip2 -9 Unmapped.out.mate1 &
+pbzip2 -9 Unmapped.out.mate2 &
+wait
 
 cd output
 for i in Gene/raw GeneFull/raw

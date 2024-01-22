@@ -5,7 +5,7 @@
 ## in STARsolo which on by default; the extra matrix can be found in /raw subdir 
 
 SIF="/nfs/cellgeni/singularity/images/starsolo_2-7-10a-alpha-220818_samtools_1-15-1_seqtk-1-13_bbmap_38-97_RSEM-1-3-3.sif"
-CMD="singularity run --nv --bind /nfs,/lustre $SIF"
+CMD="singularity run --bind /nfs,/lustre $SIF"
 
 FQDIR=$1
 TAG=$2
@@ -70,8 +70,10 @@ $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
 
 ## max-CR bzip all unmapped reads with multicore pbzip2 
-pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate1
-pbzip2 -9 -m2000 -p$CPUS Unmapped.out.mate2
+pbzip2 -9 Unmapped.out.mate1 &
+pbzip2 -9 Unmapped.out.mate2 &
+wait
+
 
 ## gzip all outputs
 cd output

@@ -12,7 +12,7 @@ TAG=$2
 
 if [[ $FQDIR == "" || $TAG == "" ]]
 then
-  >&2 echo "Usage: ./starsolo_indrops.sh <fastq_dir> <sample_id>"
+  >&2 echo "Usage: ./starsolo_bd_rhapsody.sh <fastq_dir> <sample_id>"
   >&2 echo "(make sure you set the correct REF, WL, ADAPTER, BC1/BC2, and BAM variables below)"
   exit 1
 fi
@@ -22,9 +22,9 @@ CPUS=16                                                                ## typica
 REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose the appropriate reference 
 WL=/nfs/cellgeni/STAR/whitelists                                       ## directory with all barcode whitelists
 
-ADAPTER=GAGTGATTGCTTGTGACGCCTT                                         ## these could be GAGTGATTGCTTGTGACGCCTT or GAGTGATTGCTTGTGACGCCAA 
-BC1=$WL/inDrops_Ambrose2_bc1.txt
-BC2=$WL/inDrops_Ambrose2_bc2.txt
+BC1=$WL/Rhapsody_bc1.txt
+BC2=$WL/Rhapsody_bc2.txt
+BC3=$WL/Rhapsody_bc3.txt
 
 ## choose one of the two otions, depending on whether you need a BAM file 
 #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB CR CY UR UY GX GN"
@@ -64,8 +64,8 @@ fi
 
 ## increased soloAdapterMismatchesNmax to 3, as per discussions in STAR issues
 $CMD STAR  --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
-     --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 --soloAdapterSequence $ADAPTER  \
-     --soloAdapterMismatchesNmax 3 --soloCBmatchWLtype 1MM --soloCBposition 0_0_2_-1 3_1_3_8 --soloUMIposition 3_9_3_14 \
+     --soloType CB_UMI_Complex --soloCBwhitelist $BC1 $BC2 $BC3 --soloUMIlen 8 \
+     --soloCBmatchWLtype 1MM --soloCBposition 0_0_0_8 0_21_0_29 0_43_0_51 --soloUMIposition 0_52_0_59 \
      --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --outReadsUnmapped Fastx
 
 ## max-CR bzip all unmapped reads with multicore pbzip2 

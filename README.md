@@ -124,10 +124,12 @@ As of `STAR` v2.7.10a, **multimapper counting still does not work for SMART-seq2
 
 STARsolo is very flexible and can be used with almost any scRNA-seq method, provided you know the library structure - i.e. where cell barcodes, UMIs, and biological parts of the read are located in the sequencing fragment or reads. A great source of information about scRNA-seq library structures is [this page](https://teichlab.github.io/scg_lib_structs/).
 
-Currently, our scripts directory provides dedicated scripts for
+Currently, our scripts directory provides dedicated scripts for:
+  - SMART-seq/SMART-seq2;
   - Drop-seq;
   - inDrops;
-  - Microwell-seq;  
+  - Microwell-seq;
+  - BD Rhapsody; 
   - STRT-seq. 
 
 Please contact `CellGenIT` if you need to process an unusual dataset. 

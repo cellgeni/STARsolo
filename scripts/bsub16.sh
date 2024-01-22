@@ -10,7 +10,7 @@ TAG=`basename $TAG`
 
 GROUP=`bugroup -w | grep "\b${USER}\b" | cut -d" " -f1`
 CPUS=16
-RAM=128000 
+RAM=64000 
 QUE="normal"
 WDIR=`pwd`
 

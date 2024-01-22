@@ -35,7 +35,7 @@ Once you have downloaded the needed fasta and GTF files, and applied the necessa
 All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/`. Barcode whitelist files are located in `/nfs/cellgeni/STAR/whitelists`. 
 ## Resource requirements 
 
-By default, all processing is done using 16 CPUs and 128 Gb of RAM. Using the latest settings, you _should_ be able to process most 10x experiments with 64 Gb of RAM even when you need a sorted BAM output. Farm typically has ~8 Gb of RAM per core, so 8 CPUs/64 Gb RAM, or 16 CPUs/128 Gb RAM is probably optimal. 
+By default, all processing is done using 16 CPUs and 128 Gb of RAM (**UPD: 16 CPUs/64 Gb RAM as of January 22nd, 2024**). Using the latest settings, you _should_ be able to process most 10x experiments with 64 Gb of RAM even when you need a sorted BAM output. Farm typically has ~8 Gb of RAM per core, so 8 CPUs/64 Gb RAM, or 16 CPUs/128 Gb RAM is probably optimal. 
 
 ## Processing scRNA-seq with STARsolo
 

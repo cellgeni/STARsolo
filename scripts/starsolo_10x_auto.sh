@@ -4,7 +4,7 @@
 ## newest version of the script uses STAR v2.7.10a with EM multimapper processing 
 ## in STARsolo which on by default; the extra matrix can be found in /raw subdir 
 
-SIF="/nfs/cellgeni/singularity/images/starsolo_2-7-10a-alpha-220818_samtools_1-15-1_seqtk-1-13_bbmap_38-97_RSEM-1-3-3.sif"
+SIF="/nfs/cellgeni/singularity/images/reprocess_10x.sif"
 CMD="singularity run --bind /nfs,/lustre $SIF"
 
 FQDIR=$1
@@ -77,17 +77,20 @@ fi
 
 ## we need a small and random selection of reads. the solution below is a result of much trial and error.
 ## in the end, we select 200k reads that represent all of the files present in the FASTQ dir for this sample.
+## have to use numbers because bamtofastq likes to make files with identical names in different folders..
+COUNT=0
 for i in `echo $R1 | tr ',' ' '`
 do
-  j=`basename $i`
-  $ZCMD $i | head -4000000 > $j.R1_head &
+  $ZCMD $i | head -4000000 > $COUNT.R1_head &
+  COUNT=$((COUNT+1))
 done
 wait 
 
+COUNT=0
 for i in `echo $R2 | tr ',' ' ' `                                                
 do 
-  j=`basename $i`
-  $ZCMD $i | head -4000000 > $j.R2_head &      
+  $ZCMD $i | head -4000000 > $COUNT.R2_head &
+  COUNT=$((COUNT+1))
 done
 wait
 
@@ -217,20 +220,21 @@ then
   PAIRED=False
 fi
 
+## write a file in the sample dir too, these metrics are not crucial but useful 
 echo "Done setting up the STARsolo run; here are final processing options:"
 echo "============================================================================="
-echo "Sample: $TAG"
-echo "Paired-end mode: $PAIRED"
-echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads mapped to GeneFull: forward = $PCTFWD , reverse = $PCTREV"
-echo "CB whitelist: $BC, matches out of 200,000: $NBC3 (v3), $NBC2 (v2), $NBC1 (v1), $NBCA (multiome) "
-echo "CB length: $CBLEN"
-echo "UMI length: $UMILEN"
-echo "GZIP: $GZIP"
-echo "-----------------------------------------------------------------------------"
-echo "Read 1 files: $R1"
-echo "-----------------------------------------------------------------------------"
-echo "Read 2 files: $R2" 
-echo "-----------------------------------------------------------------------------"
+echo "Sample: $TAG" | tee $TAG.strand.txt
+echo "Paired-end mode: $PAIRED" | tee -a $TAG.strand.txt
+echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads mapped to GeneFull: forward = $PCTFWD , reverse = $PCTREV" | tee -a $TAG.strand.txt
+echo "CB whitelist: $BC, matches out of 200,000: $NBC3 (v3), $NBC2 (v2), $NBC1 (v1), $NBCA (multiome) " | tee -a $TAG.strand.txt
+echo "CB length: $CBLEN" | tee -a $TAG.strand.txt
+echo "UMI length: $UMILEN" | tee -a $TAG.strand.txt
+echo "GZIP: $GZIP" | tee -a $TAG.strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
+echo "Read 1 files: $R1" | tee -a $TAG.strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
+echo "Read 2 files: $R2" | tee -a $TAG.strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
 
 if [[ $PAIRED == "True" ]]
 then
@@ -255,8 +259,8 @@ then
 fi
 
 ## max-CR bzip all unmapped reads with multicore pbzip2 
-pbzip2 -9 Unmapped.out.mate1 &
-pbzip2 -9 Unmapped.out.mate2 &
+$CMD pbzip2 -9 Unmapped.out.mate1 &
+$CMD pbzip2 -9 Unmapped.out.mate2 &
 wait
 
 ## remove test files 

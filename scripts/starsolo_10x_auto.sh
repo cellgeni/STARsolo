@@ -223,18 +223,18 @@ fi
 ## write a file in the sample dir too, these metrics are not crucial but useful 
 echo "Done setting up the STARsolo run; here are final processing options:"
 echo "============================================================================="
-echo "Sample: $TAG" | tee $TAG.strand.txt
-echo "Paired-end mode: $PAIRED" | tee -a $TAG.strand.txt
-echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads mapped to GeneFull: forward = $PCTFWD , reverse = $PCTREV" | tee -a $TAG.strand.txt
-echo "CB whitelist: $BC, matches out of 200,000: $NBC3 (v3), $NBC2 (v2), $NBC1 (v1), $NBCA (multiome) " | tee -a $TAG.strand.txt
-echo "CB length: $CBLEN" | tee -a $TAG.strand.txt
-echo "UMI length: $UMILEN" | tee -a $TAG.strand.txt
-echo "GZIP: $GZIP" | tee -a $TAG.strand.txt
-echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
-echo "Read 1 files: $R1" | tee -a $TAG.strand.txt
-echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
-echo "Read 2 files: $R2" | tee -a $TAG.strand.txt
-echo "-----------------------------------------------------------------------------" | tee -a $TAG.strand.txt
+echo "Sample: $TAG" | tee strand.txt
+echo "Paired-end mode: $PAIRED" | tee -a strand.txt
+echo "Strand (Forward = 3', Reverse = 5'): $STRAND, %reads mapped to GeneFull: forward = $PCTFWD , reverse = $PCTREV" | tee -a strand.txt
+echo "CB whitelist: $BC, matches out of 200,000: $NBC3 (v3), $NBC2 (v2), $NBC1 (v1), $NBCA (multiome) " | tee -a strand.txt
+echo "CB length: $CBLEN" | tee -a strand.txt
+echo "UMI length: $UMILEN" | tee -a strand.txt
+echo "GZIP: $GZIP" | tee -a strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a strand.txt
+echo "Read 1 files: $R1" | tee -a strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a strand.txt
+echo "Read 2 files: $R2" | tee -a strand.txt
+echo "-----------------------------------------------------------------------------" | tee -a strand.txt
 
 if [[ $PAIRED == "True" ]]
 then

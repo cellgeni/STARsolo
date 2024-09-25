@@ -30,8 +30,10 @@ BAM="--outSAMtype None"
 
 mkdir $TAG && cd $TAG
 
-## three popular cases: <sample>_1.fastq/<sample>_2.fastq, <sample>.R1.fastq/<sample>.R2.fastq, and <sample>_L001_R1_S001.fastq/<sample>_L001_R2_S001.fastq
-## the command below will generate a comma-separated list for each read
+## four popular cases: ENA - <sample>_1.fastq/<sample>_2.fastq, regular - <sample>.R1.fastq/<sample>.R2.fastq
+## Cell Ranger - <sample>_L001_R1_S001.fastq/<sample>_L001_R2_S001.fastq, and HRA - <sample>_f1.fastq/<sample>_r2.fastq
+## the command below will generate a comma-separated list for each read if there are >1 file for each mate
+## archives (gzip/bzip2) are considered below; both .fastq and .fq should work, too. 
 R1=""
 R2=""
 if [[ `find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_1\.f.*q"` != "" ]]
@@ -46,6 +48,10 @@ elif [[ `find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_R1_.*\.f.*q"` != "" ]]
 then
   R1=`find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_R1_.*\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
   R2=`find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_R2_.*\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+elif [[ `find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_f1\.f.*q"` != "" ]]
+then
+  R1=`find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_f1\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
+  R2=`find $FQDIR/* | grep -P "\/$TAG[\/\._]" | grep "_r2\.f.*q" | sort | tr '\n' ',' | sed "s/,$//g"`
 else 
   >&2 echo "ERROR: No appropriate fastq files were found! Please check file formatting, and check if you have set the right FQDIR."
   exit 1
@@ -100,6 +106,8 @@ cat *.R2_head | $CMD seqtk sample -s100 - 200000 > test.R2.fastq &
 wait 
 rm *.R1_head *.R2_head
 
+## elucidate the right barcode whitelist to use. Grepping out N saves us some trouble. Note the special list for multiome experiments (737K-arc-v1.txt):
+## 50k (out of 200,000) is a modified empirical number - matching only first 14-16 nt makes this more specific
 NBC1=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-14 | grep -F -f $WL/737K-april-2014_rc.txt | wc -l`
 NBC2=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-16 | grep -F -f $WL/737K-august-2016.txt | wc -l`
 NBC3=`cat test.R1.fastq | awk 'NR%4==2' | cut -c-16 | grep -F -f $WL/3M-february-2018.txt | wc -l`
@@ -108,8 +116,6 @@ R1LEN=`cat test.R1.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%
 R2LEN=`cat test.R2.fastq | awk 'NR%4==2' | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}'`
 R1DIS=`cat test.R1.fastq | awk 'NR%4==2' | awk '{print length($0)}' | sort | uniq -c | wc -l`
 
-## elucidate the right barcode whitelist to use. Grepping out N saves us some trouble. Note the special list for multiome experiments (737K-arc-v1.txt):
-## 50k (out of 200,000) is a modified empirical number - matching only first 14-16 nt makes this more specific
 if (( $NBC3 > 50000 )) 
 then 
   BC=$WL/3M-february-2018.txt
@@ -146,7 +152,7 @@ then
 fi
 
 ## assign the necessary variables for barcode/UMI length/paired-end processing. 
-## scripts was changed to not rely on read length for the UMIs because of the epic Hassan case
+## script was changed to not rely on read length for the UMIs because of the epic Hassan case
 # (v2 16bp barcodes + 10bp UMIs were sequenced to 28bp, effectively removing the effects of the UMIs)
 if (( $R1LEN > 50 )) 
 then
@@ -204,7 +210,7 @@ $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn test.R2.fastq test.R
 PCTFWD=`grep "Reads Mapped to GeneFull: Unique GeneFull" test_forward/GeneFull/Summary.csv | awk -F "," '{printf "%d\n",$2*100+0.5}'`
 PCTREV=`grep "Reads Mapped to GeneFull: Unique GeneFull" test_reverse/GeneFull/Summary.csv | awk -F "," '{printf "%d\n",$2*100+0.5}'`
 
-if (( $PCTREV >= $PCTFWD )) 
+if (( $PCTREV > $PCTFWD )) 
 then
   STRAND=Reverse
 fi

@@ -24,7 +24,7 @@ Briefly,
   - the references are filtered to remove pseudogenes and small RNAs; exact filtering scripts are available [here](https://support.10xgenomics.com/single-cell-gene-expression/software/release-notes/build#header); 
   - number of genes in `Cell Ranger` filtered human reference is about 35k; in full human annotation there are about 60k.
 
-Once you have downloaded the needed fasta and GTF files, and applied the necessary filtering (see the 10x genomics link above), run the following command using 16 CPUs/64 Gbs of RAM: 
+Once you have downloaded the needed fasta and GTF files, and applied the necessary filtering (see the 10x genomics link above), run the following command using 16 CPUs/64Gb of RAM: 
 
 `STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles $FA --sjdbGTFfile $GTF`
 
@@ -35,7 +35,7 @@ Once you have downloaded the needed fasta and GTF files, and applied the necessa
 All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/`. Barcode whitelist files are located in `/nfs/cellgeni/STAR/whitelists`. 
 ## Resource requirements 
 
-By default, all processing is done using 16 CPUs and 128 Gb of RAM (**UPD: 16 CPUs/64 Gb RAM as of January 22nd, 2024**). Using the latest settings, you _should_ be able to process most 10x experiments with 64 Gb of RAM even when you need a sorted BAM output. Farm typically has ~8 Gb of RAM per core, so 8 CPUs/64 Gb RAM, or 16 CPUs/128 Gb RAM is probably optimal. 
+By default, all processing is done using 16 CPUs and 128Gb of RAM. Sanger Farm typically has 8 Gb of RAM per core, so 8 CPUs/64Gb RAM, or 16 CPUs/128Gb RAM is probably optimal. Unfortunately, many datasets fail with OOM error when 64Gb is requested, so we reverted our defaults to 128Gb. 
 
 ## Processing scRNA-seq with STARsolo
 
@@ -129,7 +129,8 @@ Currently, our scripts directory provides dedicated scripts for:
   - Drop-seq;
   - inDrops;
   - Microwell-seq;
-  - BD Rhapsody; 
+  - BD Rhapsody;
+  - CEL-seq;
   - STRT-seq. 
 
 Please contact `CellGenIT` if you need to process an unusual dataset. 
@@ -142,4 +143,4 @@ If you've used these scripts to process multiple 10X samples, you can get a quic
 ./solo_QC.sh | column -t 
 ```
 
-The script is designed for 10X or other droplet-based methods; the output will make a lot less sense for SMART-seq2. 
+The script is designed for 10X or other droplet-based methods. For SMART-seq2, if processing was done per plate, it will also produce an informative output. 

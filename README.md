@@ -45,7 +45,7 @@ The current relevant wrapper script for all 10X scRNA-seq processing is called `
 
 Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
 
-Below are the explanations for some of the options (note that 5' experiments **always** use `737K-august-2016.txt` barcode file): 
+Below are the explanations for some of the options (note that 5' experiments of versions v1.1/v2/v3 all use `737K-august-2016.txt` barcode file): 
   - `--runDirPerm All_RWX` allows a directory readable by all users, which becomes an issue when sharing results on Farm; 
   - `--soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloUMIlen $UMILEN --soloStrand $STR` are settings that change with the used 10x chemistry:
 
@@ -56,8 +56,10 @@ Below are the explanations for some of the options (note that 5' experiments **a
 | 3' v1 | 737K-april-2014_rc.txt | 10 | Forward |
 | 3' v2 | 737K-august-2016.txt | 10 | Forward |
 | 3' v3, v3.1 | 3M-february-2018.txt | 12 | Forward |
+| 3' v4 | 3M-3pgex-may-2023.txt | 12 | Forward |
 | 5' v1.1, v2 | 737K-august-2016.txt | 10 | Reverse |
 | 5' v3 | 737K-august-2016.txt | 12 | Reverse |
+| 5' v4 | 3M-5pgex-jan-2023.txt | 12 | Reverse |
 | multiome | 737K-arc-v1.txt | 12 | Forward |
 
 </div>

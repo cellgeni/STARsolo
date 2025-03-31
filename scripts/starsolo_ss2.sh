@@ -24,7 +24,7 @@ REF=/nfs/cellgeni/STAR/human/2020A/index                               ## choose
 
 ## choose one of the two otions, depending on whether you need a BAM file 
 ## BAM options are for 10x and not tested with other methods
-#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB CR CY UR UY GX GN"
+#BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM GX GN RG"
 BAM="--outSAMtype None"
 
 ###################################################################### DONT CHANGE OPTIONS BELOW THIS LINE ##############################################################################################

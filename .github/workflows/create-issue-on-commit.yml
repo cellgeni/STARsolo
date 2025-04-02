@@ -23,7 +23,7 @@ jobs:
 
       - name: Create Issue in cellgeni/nf-starsolo
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ISSUE_PAT_TOKEN }}
           TARGET_REPO: "cellgeni/nf-starsolo"
           ISSUE_TITLE: "New update in cellgeni/STARsolo (${{ env.COMMIT_DATE }})"
           ISSUE_BODY: |

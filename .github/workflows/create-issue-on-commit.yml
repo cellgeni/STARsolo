@@ -1,0 +1,43 @@
+name: Create Issue on Commit
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-issue:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Get Commit Details
+        id: commit_details
+        run: |
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=format:'%s')" >> $GITHUB_ENV
+          echo "COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')" >> $GITHUB_ENV
+          echo "COMMIT_URL=$(git log -1 --pretty=format:'%H')" >> $GITHUB_ENV
+          echo "COMMIT_DATE=$(date +"%b%y")" >> $GITHUB_ENV
+
+      - name: Create Issue in cellgeni/nf-starsolo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_REPO: "cellgeni/nf-starsolo"
+          ISSUE_TITLE: "New update in cellgeni/STARsolo (${{ env.COMMIT_DATE }})"
+          ISSUE_BODY: |
+            A new commit has been pushed to cellgeni/STARsolo.
+
+            **Commit Message:**
+            ${{ env.COMMIT_MESSAGE }}
+
+            **Author:**
+            ${{ env.COMMIT_AUTHOR }}
+
+            **Commit URL:**
+            https://github.com/cellgeni/STARsolo/commit/${{ env.COMMIT_URL }}
+        run: |
+          curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+            -d "{\"title\": \"${ISSUE_TITLE}\", \"body\": \"${ISSUE_BODY}\"}" \
+            https://api.github.com/repos/$TARGET_REPO/issues

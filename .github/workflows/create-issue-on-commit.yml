@@ -41,3 +41,24 @@ jobs:
           curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
             -d "{\"title\": \"${ISSUE_TITLE}\", \"body\": \"${ISSUE_BODY}\"}" \
             https://api.github.com/repos/$TARGET_REPO/issues
+
+      - name: Create Issue in cellgeni/nf-starsolo
+        env:
+          GITHUB_TOKEN: ${{ secrets.ISSUE_PAT_TOKEN }}
+          TARGET_REPO: "cellgeni/nf-starsolo"
+          ISSUE_TITLE: "New update in cellgeni/STARsolo (${{ env.COMMIT_DATE }})"
+          ISSUE_BODY: |
+            A new commit has been pushed to cellgeni/STARsolo.
+            **Commit Message:**
+            ${{ env.COMMIT_MESSAGE }}
+            **Author:**
+            ${{ env.COMMIT_AUTHOR }}
+            **Commit URL:**
+            https://github.com/cellgeni/STARsolo/commit/${{ env.COMMIT_URL }}
+        run: |
+          JSON_PAYLOAD=$(jq -n --arg title "$ISSUE_TITLE" --arg body "$ISSUE_BODY" '{title: $title, body: $body}')
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD" \
+            https://api.github.com/repos/$TARGET_REPO/issues

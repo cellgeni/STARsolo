@@ -356,8 +356,8 @@ function main () {
   local CMD="singularity run --bind /nfs,/lustre,/software $SIF"
 
   local CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-  local REF="/home/ubuntu/my-home-dir/STAR/${SPECIE}/2020A/index"                               ## choose the appropriate reference 
-  local WL="/home/ubuntu/my-home-dir/STAR/whitelists"                                         ## directory with all barcode whitelists
+  local REF="/nfs/cellgeni/STAR/${SPECIE}/2020A/index"                               ## choose the appropriate reference 
+  local WL="/nfs/cellgeni/STAR/whitelists"                                         ## directory with all barcode whitelists
 
   ## choose one of the two otions, depending on whether you need a BAM file 
   #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outSAMunmapped Within --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB CR CY UR UY GX GN"

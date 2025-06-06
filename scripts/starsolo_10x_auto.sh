@@ -343,6 +343,7 @@ function main () {
   then
     >&2 echo "Usage: ./starsolo_10x_auto.sh <fastq_dir> <sample_id> <specie>"
     >&2 echo "(make sure you set the correct REF, WL, and BAM variables below)"
+    >&2 echo "Specie can be 'human' or 'mouse' (or any other directory in /nfs/cellgeni/STAR/)"
     >&2 echo -e "You need to have the following software installed to run this script: \n- star_version=2.7.10a_alpha_220818\n- samtools_version=1.15.1\n- bbmap_version=38.97\n- rsem_version=1.3.3"
     >&2 echo "Use /nfs/cellgeni/singularity/images/reprocess_10x.sif if you work on FARM cluster."
     exit 1

@@ -48,7 +48,7 @@ function extract_test_reads() {
   local R1=$1
   local R2=$2
   local ZCMD=$3
-  local CMD=$4
+  local CMD=${4:-""}
   
   ## we need a small and random selection of reads. the solution below is a result of much trial and error.
   ## in the end, we select 200k reads that represent all of the files present in the FASTQ dir for this sample.
@@ -76,7 +76,7 @@ function extract_test_reads() {
 
 function determine_barcode_whitelist() {
   local WL=$1
-  local CMD=$2
+  local CMD=${2:-""}
   
   ## elucidate the right barcode whitelist to use. Grepping out N saves us some trouble. Note the special list for multiome experiments (737K-arc-v1.txt):
   ## 50k (out of 200,000) is a modified empirical number - matching only first 14-16 nt makes this more specific
@@ -153,8 +153,8 @@ function determine_strand_specificity() {
   local REF=$1
   local CBLEN=$2
   local UMILEN=$3
-  local CMD=$4
-  local CPUS=$5
+  local CPUS=$4
+  local CMD=${5:-""}
   
   $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn test.R2.fastq test.R1.fastq --runDirPerm All_RWX --outSAMtype None \
      --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) \
@@ -233,7 +233,8 @@ function run_starsolo() {
   local STRAND=$9
   local REF=${10}
   local CPUS=${11}
-  local CMD=${12}
+  local SOLOFILENAMES=$12
+  local CMD=${13:-""}
   
   if [[ $PAIRED == "True" ]]; then
     ## note the R1/R2 order of input fastq reads and --soloStrand Forward for 5' paired-end experiment
@@ -241,38 +242,37 @@ function run_starsolo() {
        --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloCBstart 1 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand Forward \
        --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
        --soloCellFilter EmptyDrops_CR --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
-       --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
+       --soloFeatures Gene GeneFull Velocyto --soloOutFileNames $SOLOFILENAMES features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
   else 
     $CMD STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
        --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand $STRAND \
        --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
        --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
-       --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
+       --soloFeatures Gene GeneFull Velocyto --soloOutFileNames $SOLOFILENAMES features.tsv barcodes.tsv matrix.mtx --soloMultiMappers EM
   fi
 }
 
 function process_output_files() {
-  local CMD=$1
+  local TAG=$1
+  local SOLOFILENAMES=$2
+  local CMD=${3:-""}
   
   ## index the BAM file
-  if [[ -s Aligned.sortedByCoord.out.bam ]]; then
+  if [[ -s "$TAG/Aligned.sortedByCoord.out.bam" ]]; then
     $CMD samtools index -@16 Aligned.sortedByCoord.out.bam
   fi
 
   ## max-CR bzip all unmapped reads with multicore pbzip2 
-  $CMD pbzip2 -9 Unmapped.out.mate1 &
-  $CMD pbzip2 -9 Unmapped.out.mate2 &
+  $CMD pbzip2 -9 "$TAG/Unmapped.out.mate1" &
+  $CMD pbzip2 -9 "$TAG/Unmapped.out.mate2" &
   wait
 
   ## remove test files 
-  rm -rf test.R?.fastq test_forward test_reverse
+  rm -rf $TAG/test.R?.fastq $TAG/test_forward $TAG/test_reverse
 
-  cd output
-  for i in Gene/raw Gene/filtered GeneFull/raw GeneFull/filtered Velocyto/raw Velocyto/filtered; do
-    cd $i
-    for j in *; do gzip $j & done
-    cd ../../
-  done
+  cd $SOLOFILENAMES
+  gzip $SOLOFILENAMES/*/*/*.tsv
+  gzip $SOLOFILENAMES/*/*/*.mtx
 
   wait
   echo "ALL DONE!"
@@ -285,7 +285,7 @@ function starsolo_10x() {
   local REF=$4
   local WL=$5
   local BAM=$6
-  local CMD=$7
+  local CMD=${7:-""}
 
   FQDIR=$(readlink -f $FQDIR)
   mkdir $TAG && cd $TAG
@@ -325,16 +325,17 @@ function starsolo_10x() {
   
   # Determine strand specificity
   local STRAND=Forward
-  determine_strand_specificity "$REF" "$CBLEN" "$UMILEN" "$CMD" "$CPUS"
+  determine_strand_specificity "$REF" "$CBLEN" "$UMILEN" "$CPUS" "$CMD"
   
   # Write configuration to file
   write_config_file "$TAG" "$PAIRED" "$STRAND" "$PCTFWD" "$PCTREV" "$BC" "$NBC1" "$NBC2" "$NBC3" "$NBCA" "$CBLEN" "$UMILEN" "$GZIP" "$R1" "$R2"
   
   # Run STARsolo with determined parameters
-  run_starsolo "$PAIRED" "$R1" "$R2" "$GZIP" "$BAM" "$BC" "$CBLEN" "$UMILEN" "$STRAND" "$REF" "$CPUS" "$CMD"
+  local SOLOFILENAMES="$TAG/output"
+  run_starsolo "$PAIRED" "$R1" "$R2" "$GZIP" "$BAM" "$BC" "$CBLEN" "$UMILEN" "$STRAND" "$REF" "$CPUS" "$SOLOFILENAMES" "$CMD"
   
   # Process output files
-  process_output_files "$CMD"
+  process_output_files "$TAG" "$SOLOFILENAMES" "$CMD"
 }
 
 function main () {
@@ -342,27 +343,27 @@ function main () {
   then
     >&2 echo "Usage: ./starsolo_10x_auto.sh <fastq_dir> <sample_id> <specie>"
     >&2 echo "(make sure you set the correct REF, WL, and BAM variables below)"
-    >&2 echo -e "You need to have the following software installed to run this script: \nstar_version=2.7.10a_alpha_220818\nsamtools_version=1.15.1\nbbmap_version=38.97\nrsem_version=1.3.3"
+    >&2 echo -e "You need to have the following software installed to run this script: \n- star_version=2.7.10a_alpha_220818\n- samtools_version=1.15.1\n- bbmap_version=38.97\n- rsem_version=1.3.3"
     >&2 echo "Use /nfs/cellgeni/singularity/images/reprocess_10x.sif if you work on FARM cluster."
     exit 1
   fi
-
-  local SIF="/nfs/cellgeni/singularity/images/reprocess_10x.sif"
-  local CMD="singularity run --bind /nfs,/lustre,/software $SIF"
 
   local FQDIR=$1
   local TAG=$2
   local SPECIE=$3
 
+  local SIF="/nfs/cellgeni/singularity/images/reprocess_10x.sif"
+  local CMD="singularity run --bind /nfs,/lustre,/software $SIF"
+
   local CPUS=16                                                                ## typically bsub this into normal queue with 16 cores and 64 Gb RAM.   
-  local REF="/nfs/cellgeni/STAR/${SPECIE}/2020A/index"                               ## choose the appropriate reference 
-  local WL="/nfs/cellgeni/STAR/whitelists"                                       ## directory with all barcode whitelists
+  local REF="/home/ubuntu/my-home-dir/STAR/${SPECIE}/2020A/index"                               ## choose the appropriate reference 
+  local WL="/home/ubuntu/my-home-dir/STAR/whitelists"                                         ## directory with all barcode whitelists
 
   ## choose one of the two otions, depending on whether you need a BAM file 
   #BAM="--outSAMtype BAM SortedByCoordinate --outBAMsortingBinsN 500 --limitBAMsortRAM 60000000000 --outSAMunmapped Within --outMultimapperOrder Random --runRNGseed 1 --outSAMattributes NH HI AS nM CB UB CR CY UR UY GX GN"
-  BAM="--outSAMtype None --outReadsUnmapped Fastx"
+  local BAM="--outSAMtype None --outReadsUnmapped Fastx"
 
-  starsolo_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM"
+  starsolo_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$CMD"
 }
 
 

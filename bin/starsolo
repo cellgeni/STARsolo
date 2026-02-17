@@ -1,0 +1,277 @@
+#!/bin/bash -e
+# =============================================================================
+# starsolo — unified CLI for STARsolo scRNA-seq processing
+# =============================================================================
+# Version 4.0
+#
+# Usage:  starsolo <platform> [args…]
+#         starsolo --help
+#
+# Platforms: 10x, smartseq, dropseq, rhapsody, indrops, strt, qc
+# =============================================================================
+
+set -euo pipefail
+
+STARSOLO_VERSION="4.0"
+
+# ---------- Resolve install paths -------------------------------------------
+
+# STARSOLO_ROOT is the repo root (parent of bin/).
+# Works whether called via symlink, PATH, or direct path.
+_resolve_root() {
+    local SOURCE="${BASH_SOURCE[0]}"
+    while [[ -L "$SOURCE" ]]; do
+        local DIR
+        DIR=$(cd -P "$(dirname "$SOURCE")" && pwd)
+        SOURCE=$(readlink "$SOURCE")
+        [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+    done
+    cd -P "$(dirname "$SOURCE")/.." && pwd
+}
+
+STARSOLO_ROOT=$(_resolve_root)
+
+# ---------- Load shared code ------------------------------------------------
+
+source "$STARSOLO_ROOT/etc/defaults.conf"
+source "$STARSOLO_ROOT/lib/common.sh"
+source "$STARSOLO_ROOT/lib/platform_10x.sh"
+source "$STARSOLO_ROOT/lib/platform_smartseq.sh"
+source "$STARSOLO_ROOT/lib/platform_dropseq.sh"
+source "$STARSOLO_ROOT/lib/platform_rhapsody.sh"
+source "$STARSOLO_ROOT/lib/platform_indrops.sh"
+source "$STARSOLO_ROOT/lib/platform_strt.sh"
+
+# ---------- Top-level help ---------------------------------------------------
+
+show_main_help() {
+    cat <<EOF
+starsolo v${STARSOLO_VERSION} — unified CLI for STARsolo scRNA-seq processing
+
+Usage:
+  starsolo <platform> <args…> [options]
+  starsolo qc
+  starsolo --help | --version
+
+Platforms:
+  10x         10x Genomics (auto-detects chemistry, strand, PE/SE)
+  smartseq    Smart-seq / Smart-seq2 (plate-based, manifest file)
+  dropseq     Drop-seq (12 bp CB, 8 bp UMI, no whitelist)
+  rhapsody    BD Rhapsody (3 barcode segments, 8 bp UMI)
+  indrops     inDrops (2 barcode segments + adapter, 6 bp UMI)
+  strt        STRT-seq (96-barcode whitelist, 8 bp CB, 8 bp UMI)
+  qc          Aggregate QC stats across completed runs
+
+Global options (available for all platforms):
+  -s, --species <name>      Species (e.g. human, mouse); resolves reference
+  -r, --ref <path>          Explicit STAR genome index (overrides --species)
+  -w, --whitelist-dir <dir> Barcode whitelist directory
+  -c, --cpus <N>            Number of threads  [default: ${STARSOLO_CPUS}]
+  --bam                     Output sorted BAM
+  --no-bam                  No BAM output (default)
+  -h, --help                Show help (per-platform if after platform name)
+  --version                 Print version
+
+Configuration:
+  Defaults are read from $STARSOLO_ROOT/etc/defaults.conf
+  Override with environment variables (STARSOLO_CPUS, STARSOLO_REF_BASE, …)
+  or with CLI flags.
+
+Examples:
+  starsolo 10x /data/fastqs SAMPLE1 --species human
+  starsolo 10x /data/fastqs SAMPLE1 --ref /path/to/index --bam
+  starsolo smartseq manifest.tsv --species mouse
+  starsolo dropseq /data/fastqs SAMPLE1 --species human
+  starsolo rhapsody /data/fastqs SAMPLE1 --species human
+  starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
+  starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
+  starsolo qc
+EOF
+}
+
+# ---------- Option parsing helpers ------------------------------------------
+
+# Parses the common option set shared by all droplet-based platforms.
+# After parsing, the following variables are set:
+#   FQDIR, TAG, REF, WL, CPUS, BAM, plus platform-specific extras.
+# The function shifts positional args (FQDIR, TAG) off $@ and processes flags.
+
+# Generic parser for platforms that take: <fastq_dir> <sample_id> [options]
+# Sets: FQDIR TAG REF WL CPUS BAM and any extra vars needed.
+parse_droplet_args() {
+    local PLATFORM=$1; shift
+
+    # Defaults from config
+    CPUS="$STARSOLO_CPUS"
+    WL="$STARSOLO_WL_DIR"
+    BAM_MODE="$STARSOLO_BAM_MODE"
+    REF=""
+    SPECIES=""
+    FQDIR=""
+    TAG=""
+
+    # Platform-specific defaults
+    ADAPTER="GAGTGATTGCTTGTGACGCCTT"   # indrops
+    STRAND="Forward"                    # strt
+
+    # Consume positional args first (up to 2)
+    local POSITIONALS=()
+    local ALL_ARGS=("$@")
+    local i=0
+
+    while (( i < ${#ALL_ARGS[@]} )); do
+        case "${ALL_ARGS[$i]}" in
+            -*) break ;;
+            *)  POSITIONALS+=("${ALL_ARGS[$i]}"); i=$((i + 1)) ;;
+        esac
+    done
+
+    # Remaining are flags
+    local FLAGS=()
+    if (( i < ${#ALL_ARGS[@]} )); then
+        FLAGS=("${ALL_ARGS[@]:$i}")
+    fi
+
+    # For smartseq we only need 1 positional; others need 2
+    if [[ $PLATFORM == "smartseq" ]]; then
+        if (( ${#POSITIONALS[@]} < 1 )); then
+            "show_${PLATFORM}_help"
+            exit 1
+        fi
+        FQDIR="${POSITIONALS[0]}"  # actually TSV for smartseq
+    else
+        if (( ${#POSITIONALS[@]} < 2 )); then
+            "show_${PLATFORM}_help"
+            exit 1
+        fi
+        FQDIR="${POSITIONALS[0]}"
+        TAG="${POSITIONALS[1]}"
+    fi
+
+    # Parse flags
+    local j=0
+    while (( j < ${#FLAGS[@]} )); do
+        case "${FLAGS[$j]}" in
+            -s|--species)
+                SPECIES="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            -r|--ref)
+                REF="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            -w|--whitelist-dir)
+                WL="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            -c|--cpus)
+                CPUS="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            --bam)
+                BAM_MODE="bam"
+                j=$((j + 1)) ;;
+            --no-bam)
+                BAM_MODE="nobam"
+                j=$((j + 1)) ;;
+            --adapter)
+                ADAPTER="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            --strand)
+                STRAND="${FLAGS[$((j+1))]}"
+                j=$((j + 2)) ;;
+            -h|--help)
+                "show_${PLATFORM}_help"
+                exit 0 ;;
+            *)
+                die "Unknown option: ${FLAGS[$j]}. Run 'starsolo $PLATFORM --help'." ;;
+        esac
+    done
+
+    # Resolve REF from species if not explicitly given
+    if [[ -z "$REF" ]]; then
+        [[ -n "$SPECIES" ]] || die "Either --species or --ref must be provided."
+        REF=$(resolve_reference "$SPECIES" "$STARSOLO_REF_BASE") || exit 1
+    fi
+
+    BAM=$(resolve_bam_flags "$BAM_MODE")
+}
+
+# ---------- QC subcommand ---------------------------------------------------
+
+run_qc() {
+    local QC_SCRIPT="$STARSOLO_ROOT/scripts/solo_qc.sh"
+    if [[ ! -x "$QC_SCRIPT" ]]; then
+        die "QC script not found: $QC_SCRIPT"
+    fi
+    exec bash "$QC_SCRIPT" "$@"
+}
+
+# ---------- Dispatch --------------------------------------------------------
+
+main() {
+    if (( $# == 0 )); then
+        show_main_help
+        exit 0
+    fi
+
+    case "$1" in
+        --help|-h)
+            show_main_help
+            exit 0 ;;
+        --version)
+            echo "starsolo v${STARSOLO_VERSION}"
+            exit 0 ;;
+    esac
+
+    local PLATFORM="$1"; shift
+
+    case "$PLATFORM" in
+        10x)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_10x_help; exit 0
+            fi
+            parse_droplet_args "10x" "$@"
+            run_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM"
+            ;;
+        smartseq|smart-seq|ss2)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_smartseq_help; exit 0
+            fi
+            parse_droplet_args "smartseq" "$@"
+            run_smartseq "$FQDIR" "$CPUS" "$REF" "$BAM"
+            ;;
+        dropseq|drop-seq)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_dropseq_help; exit 0
+            fi
+            parse_droplet_args "dropseq" "$@"
+            run_dropseq "$FQDIR" "$TAG" "$CPUS" "$REF" "$BAM"
+            ;;
+        rhapsody|bd-rhapsody|bd)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_rhapsody_help; exit 0
+            fi
+            parse_droplet_args "rhapsody" "$@"
+            run_rhapsody "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM"
+            ;;
+        indrops)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_indrops_help; exit 0
+            fi
+            parse_droplet_args "indrops" "$@"
+            run_indrops "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$ADAPTER"
+            ;;
+        strt|strt-seq)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_strt_help; exit 0
+            fi
+            parse_droplet_args "strt" "$@"
+            run_strt "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$STRAND"
+            ;;
+        qc)
+            run_qc "$@"
+            ;;
+        *)
+            die "Unknown platform: '$PLATFORM'. Run 'starsolo --help' for usage."
+            ;;
+    esac
+}
+
+main "$@"

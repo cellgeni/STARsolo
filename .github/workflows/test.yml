@@ -25,13 +25,7 @@ jobs:
               uses: actions/checkout@v4
             
             - name: Unpack test data
-              run: |
-                pwd
-                ls -la data/
-                tar -xzf data/test.tar.gz -C .
-                echo "Extracted files:"
-                ls -la data/test/ || echo "data/test/ not found"
-                ls -la data/test/whitelists/ || echo "whitelists not found"
+              run: tar -xzf data/test.tar.gz
             
             - name: Run tests
               run: |

@@ -32,6 +32,12 @@ jobs:
               run: |
                 set -e
                 technology=${{ matrix.technology }}
-                bin/starsolo $technology data/test/fastqs/${technology} "$technology" --ref data/test/reference/index --whitelist-dir data/test/whitelists --no-bam --cpus 1
+                input="data/test/fastqs/${technology}"
+                tag="$technology"
+                if [ "$technology" = "smartseq" ]; then
+                    input="data/test/fastqs/${technology}/smartseq_example.manifest.tsv"
+                    tag=""
+                fi
+                bin/starsolo $technology "$input" "$tag" --ref data/test/reference/index --whitelist-dir data/test/whitelists --no-bam --cpus 1
     
 

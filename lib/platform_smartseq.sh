@@ -49,6 +49,7 @@ run_smartseq() {
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
         --outReadsUnmapped Fastx
 
+    rm -f "$NEW_MANIFEST"
     process_output_files "output"
 }
 

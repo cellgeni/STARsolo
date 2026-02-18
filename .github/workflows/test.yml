@@ -10,7 +10,6 @@ jobs:
         runs-on: ubuntu-latest
         container: quay.io/cellgeni/reprocess_10x:1.1
         strategy:
-            fails-fast: false
             matrix:
                 include:
                     - technology: 10x
@@ -26,7 +25,13 @@ jobs:
               uses: actions/checkout@v4
             
             - name: Unpack test data
-              run: tar -xzf data/test.tar.gz
+              run: |
+                pwd
+                ls -la data/
+                tar -xzf data/test.tar.gz -C .
+                echo "Extracted files:"
+                ls -la data/test/ || echo "data/test/ not found"
+                ls -la data/test/whitelists/ || echo "whitelists not found"
             
             - name: Run tests
               run: |

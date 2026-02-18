@@ -10,7 +10,7 @@ ARG seqtk_version=1.4
 #Install OS packages
 RUN apt-get update && apt-get -y --no-install-recommends -qq install \
     wget gcc build-essential software-properties-common libz-dev \
-    git libncurses5-dev libbz2-dev liblzma-dev default-jre bsdmainutils
+    git libncurses5-dev libbz2-dev liblzma-dev default-jre bsdmainutils pbzip2
 
 #Install STAR
 RUN wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${star_version}.tar.gz && \
@@ -62,6 +62,9 @@ RUN echo "STAR version: ${star_version}" >> versions.txt && \
 COPY Dockerfile /docker/
 RUN chmod -R 755 /docker
 
+
+
 # Default entrypoint: run the CLI
+WORKDIR /workdir
 ENTRYPOINT ["starsolo"]
 CMD ["--help"]

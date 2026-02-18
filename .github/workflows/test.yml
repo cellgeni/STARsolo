@@ -10,6 +10,7 @@ jobs:
         runs-on: ubuntu-latest
         container: quay.io/cellgeni/reprocess_10x:1.1
         strategy:
+            fail-fast: false
             matrix:
                 include:
                     - technology: 10x

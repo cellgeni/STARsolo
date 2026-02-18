@@ -12,6 +12,9 @@ run_dropseq() {
     FQDIR_ABS=$(validate_fqdir "$FQDIR") || exit 1
     TAG=$(validate_tag "$TAG") || exit 1
 
+    # Convert to absolute path before cd
+    REF=$(readlink -f "$REF")
+
     mkdir -p "$TAG" && cd "$TAG" || exit
 
     # Discover FASTQs

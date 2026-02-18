@@ -19,6 +19,11 @@ run_indrops() {
         [[ -f "$f" ]] || die "inDrops barcode file not found: $f"
     done
 
+    # Convert to absolute paths before cd
+    REF=$(readlink -f "$REF")
+    BC1=$(readlink -f "$BC1")
+    BC2=$(readlink -f "$BC2")
+
     mkdir -p "$TAG" && cd "$TAG" || exit
 
     # Discover FASTQs

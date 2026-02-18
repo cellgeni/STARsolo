@@ -15,7 +15,9 @@ run_smartseq() {
     TAG=$(basename "${TAG%%.tsv}")        # fallback if named differently
     [[ -n "$TAG" ]] || die "Could not derive sample name from manifest filename."
 
+    # Convert to absolute paths before cd
     TSV=$(readlink -f "$TSV")
+    REF=$(readlink -f "$REF")
 
     mkdir -p "$TAG" && cd "$TAG" || exit
 

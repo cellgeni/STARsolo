@@ -16,6 +16,10 @@ run_strt() {
     local BC="$WL/96_barcodes.list"
     [[ -f "$BC" ]] || die "STRT-seq barcode file not found: $BC"
 
+    # Convert to absolute paths before cd
+    REF=$(readlink -f "$REF")
+    BC=$(readlink -f "$BC")
+
     local CBLEN=8
     local UMILEN=8
 

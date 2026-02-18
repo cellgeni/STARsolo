@@ -2,6 +2,12 @@ name: "Test Workflow"
 on:
     push:
         branches: [main, dev]
+        paths-ignore:
+            - 'data/whitelists.tar.gz'
+            - 'README.md'
+            - 'LICENSE'
+            - 'scripts/**'
+            - 'Dockerfile'
     pull_request:
         branches: [main, dev]
 

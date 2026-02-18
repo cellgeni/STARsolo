@@ -19,7 +19,19 @@ run_smartseq() {
     TSV=$(readlink -f "$TSV")
     REF=$(readlink -f "$REF")
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
+    # Create output directory
+    mkdir -p "$TAG" || exit
+
+    # Convert manifest paths to absolute and write to output directory
+    local NEW_MANIFEST="$TAG/manifest.tsv"
+    while IFS=$'\t' read -r r1 r2 cell; do
+        r1=$(readlink -f "$r1")
+        r2=$(readlink -f "$r2")
+        echo -e "$r1\t$r2\t$cell"
+    done < "$TSV" > "$NEW_MANIFEST"
+
+    cd "$TAG" || exit
+    TSV="manifest.tsv"
 
     # Compression detection from manifest content
     local GZIP=""

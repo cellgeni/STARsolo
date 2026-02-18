@@ -1,0 +1,57 @@
+name: "Test Workflow"
+on:
+    push:
+        branches: [main, dev]
+        paths-ignore:
+            - 'data/whitelists.tar.gz'
+            - 'README.md'
+            - 'LICENSE'
+            - 'scripts/**'
+            - 'Dockerfile'
+    pull_request:
+        branches: [main, dev]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        container: quay.io/cellgeni/starsolo:base
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - technology: 10x
+                    - technology: dropseq
+                    - technology: indrops
+                    - technology: smartseq
+                    - technology: rhapsody
+                    - technology: strt
+        name: "Run tests for ${{ matrix.technology }}"
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Unpack test data
+              run: tar -xzf data/test.tar.gz
+            
+            - name: Run tests
+              run: |
+                set -e
+                technology=${{ matrix.technology }}
+                if [ "$technology" = "smartseq" ]; then
+                    bin/starsolo smartseq \
+                        data/test/fastqs/smartseq/smartseq_example.manifest.tsv \
+                        --ref data/test/reference/index \
+                        --no-bam \
+                        --cpus 1
+                else
+                    bin/starsolo $technology \
+                        data/test/fastqs/${technology} \
+                        "$technology" \
+                        --ref data/test/reference/index \
+                        --whitelist-dir data/test/whitelists \
+                        --no-bam \
+                        --cpus 1
+                fi
+    
+

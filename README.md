@@ -1,148 +1,256 @@
-# Wrapper scripts for `STARsolo` scRNA-seq pipeline
+# `starsolo` — unified CLI for STARsolo scRNA-seq processing
 
-These are the scripts used for CellGenIT for uniform processing of scRNA-seq - both 10X and quite a few other types (see below for supported platforms). All listed methods use [STAR](https://github.com/alexdobin/STAR) aligner to align reads to the reference genome. 
+A single command-line tool that wraps [STAR](https://github.com/alexdobin/STAR) in `STARsolo` mode for uniform processing of scRNA-seq data across multiple platforms.
 
-## Software installation
+## Supported platforms
 
-### STAR version
+| Subcommand | Platform | Barcode type | Chemistry auto-detection |
+|:--|:--|:--|:-:|
+| `10x` | 10x Genomics (v1 – v4, multiome) | CB_UMI_Simple | ✅ |
+| `smartseq` | Smart-seq / Smart-seq2 | SmartSeq (plate-based, no UMIs) | — |
+| `dropseq` | Drop-seq | CB_UMI_Simple (no whitelist) | — |
+| `rhapsody` | BD Rhapsody | CB_UMI_Complex (3 segments) | — |
+| `indrops` | inDrops | CB_UMI_Complex (2 segments + adapter) | — |
+| `strt` | STRT-seq | CB_UMI_Simple (96-barcode list) | — |
+| `qc` | Aggregate QC stats across runs | — | — |
 
-`STAR` of version 2.7.9a or above is recommended (2.7.10a is the latest and greatest, as of August'22). The newest update includes the ability to correctly process multi-mapping reads, and adds many important options and bug fixes. 
+## Installation
 
-In order to use settings that closely mimic those of `Cell Ranger` v4 or above (see explanations below, particularly `--clipAdapterType CellRanger4` option), `STAR` needs to be re-compiled from source with `make STAR CXXFLAGS_SIMD="-msse4.2"` (see [this issue](https://github.com/alexdobin/STAR/issues/1218) for more info). If you get the _Illegal instruction_ error, that's what you need to do. 
+### Prerequisites
 
-### Docker
+The following tools **must be available in `$PATH`** before running `starsolo`:
 
-We also have a Dockerfile which builds with specific versions of all the tools used. Once the container is built you can do `cat /versions.txt` and it will show the versions of the tools in the container. 
+| Tool | Tested version | Purpose |
+|:--|:--|:--|
+| [STAR](https://github.com/alexdobin/STAR) | 2.7.10a | Alignment & quantification |
+| [samtools](https://github.com/samtools/samtools) | 1.15.1 | BAM indexing |
+| [seqtk](https://github.com/lh3/seqtk) | 1.3+ | Read subsampling (10x chemistry detection) |
+| [pbzip2](https://launchpad.net/pbzip2) | 1.1+ | Compressing unmapped reads |
+| [BBMap](https://sourceforge.net/projects/bbmap/) | 38.97 | Adapter trimming (optional, via `bbduk.sh`) |
 
-## Reference genome and annotation
+> **Tip:** The included [Dockerfile](Dockerfile) builds all of the above into a single container image.
 
-The issues of reference genome and annotation used for **mouse** and **human** scRNA-seq experiments are described [here](https://www.singlecellcourse.org/processing-raw-scrna-seq-sequencing-data-from-reads-to-a-count-matrix.html) in some detail. 
+STAR must be compiled with `make STAR CXXFLAGS_SIMD="-msse4.2"` to support `--clipAdapterType CellRanger4` (see [STAR#1218](https://github.com/alexdobin/STAR/issues/1218)).
 
-Briefly,
-
-  - there are several standard annotation versions used by `Cell Ranger`; They are referred to as versions `1.2.0`, `2.1.0`, `3.0.0`, and `2020-A`; 
-  - the references are filtered to remove pseudogenes and small RNAs; exact filtering scripts are available [here](https://support.10xgenomics.com/single-cell-gene-expression/software/release-notes/build#header); 
-  - number of genes in `Cell Ranger` filtered human reference is about 35k; in full human annotation there are about 60k.
-
-Once you have downloaded the needed fasta and GTF files, and applied the necessary filtering (see the 10x genomics link above), run the following command using 16 CPUs/64Gb of RAM: 
-
-`STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles $FA --sjdbGTFfile $GTF`
-
-`STARsolo` reference is not different from a normal `STAR` reference - `STARsolo` workflow is invoked using the options listed below. Thus, it can be run on both `Cell Ranger` filtered and un-filtered index. We use the filtered reference to match the `Cell Ranger` output as closely as possible. 
-
-### Pre-made reference location
-
-All **CellGenIT** pre-made `STAR` references are located in `/nfs/cellgeni/STAR/`. Barcode whitelist files are located in `/nfs/cellgeni/STAR/whitelists`. 
-## Resource requirements 
-
-By default, all processing is done using 16 CPUs and 128Gb of RAM. Sanger Farm typically has 8 Gb of RAM per core, so 8 CPUs/64Gb RAM, or 16 CPUs/128Gb RAM is probably optimal. Unfortunately, many datasets fail with OOM error when 64Gb is requested, so we reverted our defaults to 128Gb. 
-
-## Processing scRNA-seq with STARsolo
-
-### 10X: reproducing `Cell Ranger` v4 and above (but much faster)
-
-The current relevant wrapper script for all 10X scRNA-seq processing is called `starsolo_10x_auto.sh`. The scripts contain *many* options that sometimes change; some of which will be explained below. In general, commands are tuned in such way that the results will be very close to those of `Cell Ranger` v4 and above. 
-
-Before running, barcode whitelists need to be downloaded [from here](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes). 
-
-Below are the explanations for some of the options (note that 5' experiments of versions v1.1/v2/v3 all use `737K-august-2016.txt` barcode file): 
-  - `--runDirPerm All_RWX` allows a directory readable by all users, which becomes an issue when sharing results on Farm; 
-  - `--soloCBwhitelist $BC --soloBarcodeReadLength 0 --soloUMIlen $UMILEN --soloStrand $STR` are settings that change with the used 10x chemistry:
-
-<div align="center">
-
-| 10X VERSION | BC | UMILEN | STR |
-|:-:|:-:|:-:|:-:|
-| 3' v1 | 737K-april-2014_rc.txt | 10 | Forward |
-| 3' v2 | 737K-august-2016.txt | 10 | Forward |
-| 3' v3, v3.1 | 3M-february-2018.txt | 12 | Forward |
-| 3' v4 | 3M-3pgex-may-2023.txt | 12 | Forward |
-| 5' v1.1, v2 | 737K-august-2016.txt | 10 | Reverse |
-| 5' v3 | 737K-august-2016.txt | 12 | Reverse |
-| 5' v4 | 3M-5pgex-jan-2023.txt | 12 | Reverse |
-| multiome | 737K-arc-v1.txt | 12 | Forward |
-
-</div>
-
-  - `--soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30` are options that define UMI collapsing, barcode collapsing, and read clipping algorithms that are closest to ones used by `Cell Ranger` v4+; 
-  - `--soloCellFilter EmptyDrops_CR` specifies the cell filtering algorithm used in [EmptyDrops](https://bioconductor.org/packages/release/bioc/html/DropletUtils.html), which is the default algorithm in later versions of `Cell Ranger`; 
-  - `--soloFeatures Gene GeneFull Velocyto` output conventional (exon-only) UMI counts, as well as exon+intron UMI counts (analog of `Cell Ranger` premrna option), as well as matrices preprocessed for `Velocyto`; 
-  - `--soloMultiMappers EM` is to count multimappers (on by default in v3.0+ of our wrapper scripts; does not influence the main output, but creates an additional matrix in `/raw` subdir of `Gene` and `GeneFull`); 
-  - `--readFilesCommand zcat` is used if your input fastq files are gzipped (auto-deteted);
-  - `--outReadsUnmapped Fastx` to output the unmapped reads that can be used for metagenomic analysis; 
-  - options grouped as `$SORTEDBAM` should be used if you need a genomic bam file; otherwise, use `$NOBAM`.
-
-Actual `STAR` command being run (note the order of read files passed to `--readFilesIn`): 
+### Install `starsolo` CLI
 
 ```bash
-STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R2 $R1 --runDirPerm All_RWX $GZIP $BAM \
-   --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloBarcodeReadLength 0 \
-   --soloCBlen $CBLEN --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand $STRAND \
-   --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
-   --soloCellFilter EmptyDrops_CR --clipAdapterType CellRanger4 --outFilterScoreMin 30 \
-   --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-   --soloMultiMappers EM --outReadsUnmapped Fastx
-```
-### Processing 10X datasets in paired-end mode
+git clone <this-repo> && cd STARsolo
 
-Although some 3' 10X datasets are sequenced with a "long" R1, usually they are aligned as single-end, since it would take a very long R1 to accommodate for barcode, UMI, TSO + adapter, and a poly-A tail. On the other hand, 5' 10X datasets, especially ones sequenced with 2x150 bp paired-end reads, could be trimmed and aligned as paired-end (this is what `Cell Ranger` does, too). Effective `STARsolo` command for paired-end processing is as follows (note the 5' clipping flag, read input order, and flipped `soloStrand` because of the changed read order):
+# Default: symlinks into ~/.local/bin
+./install.sh
+
+# Or specify a directory:
+./install.sh /usr/local/bin
+
+# Verify
+starsolo --version
+```
+
+The installer creates a single `starsolo` symlink. All library code is resolved relative to the repo, so you can `git pull` to update in-place.
+
+## Reference genome
+
+Use a standard STAR genome index. [Cell Ranger-filtered](https://support.10xgenomics.com/single-cell-gene-expression/software/release-notes/build#header) references are recommended for comparability with Cell Ranger output.
 
 ```bash
-STAR --runThreadN $CPUS --genomeDir $REF --readFilesIn $R1 $R2 --runDirPerm All_RWX $GZIP $BAM \
-   --soloBarcodeMate 1 --clip5pNbases 39 0 \
-   --soloType CB_UMI_Simple --soloCBwhitelist $BC --soloCBstart 1 --soloCBlen $CBLEN \
-   --soloUMIstart $((CBLEN+1)) --soloUMIlen $UMILEN --soloStrand Forward \
-   --soloUMIdedup 1MM_CR --soloCBmatchWLtype 1MM_multi_Nbase_pseudocounts --soloUMIfiltering MultiGeneUMI_CR \
-   --soloCellFilter EmptyDrops_CR --outFilterScoreMin 30 \
-   --soloFeatures Gene GeneFull Velocyto --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-   --soloMultiMappers EM --outReadsUnmapped Fastx
+STAR --runThreadN 16 --runMode genomeGenerate --genomeDir STAR --genomeFastaFiles $FA --sjdbGTFfile $GTF
 ```
 
-### Using STARsolo for SMART-seq/SMART-seq2
+By default, `starsolo` resolves references via `--species`:
 
-For plate-based methods that don't use UMIs (such as [SMART-Seq and SMART-Seq2](https://teichlab.github.io/scg_lib_structs/methods_html/SMART-seq_family.html)), `STARsolo` can be used as well. Fastq files for these methods usually come as separate, paired-end files; all of these should be listed in a *manifest* file - plain text, tab-separated file containing three columns per line: 1) full path to R1; 2) full path to R2; 3) cell name or ID. 
+```
+$STARSOLO_REF_BASE/<species>/2020A/index
+```
 
-Example of a script used to process Smart-seq2 data can be found in `/scripts/starsolo_ss2.sh`. Key parameters that could be adjusted are `--outFilterScoreMinOverLread 0.3 --outFilterMatchNminOverLread 0.3`; the higher they are, the less permissive is the alignment (we use default settings usually). Lower values can help you "rescue" a larger proportion of reads with high adapter content (see below for adapter trimming). Actual `STAR` command being run:
+Override with `--ref /your/path/to/index` on any subcommand, or change `STARSOLO_REF_BASE` in [etc/defaults.conf](etc/defaults.conf).
+
+### Barcode whitelists
+
+Download 10x barcode whitelists [from Cell Ranger](https://github.com/10XGenomics/cellranger/tree/master/lib/python/cellranger/barcodes) and place them in the whitelist directory (default: `/nfs/cellgeni/STAR/whitelists`, configurable via `--whitelist-dir` or `STARSOLO_WL_DIR`).
+
+## Usage
+
+```
+starsolo <platform> <args…> [options]
+```
+
+### Global options
+
+| Flag | Description | Default |
+|:--|:--|:--|
+| `-s, --species <name>` | Species name (`human`, `mouse`, …) — resolves reference automatically | — |
+| `-r, --ref <path>` | Explicit STAR index path (overrides `--species`) | — |
+| `-w, --whitelist-dir <dir>` | Barcode whitelist directory | from config |
+| `-c, --cpus <N>` | Number of threads | `16` |
+| `--bam` | Output coordinate-sorted BAM | off |
+| `--no-bam` | Suppress BAM output (default) | ✅ |
+| `-h, --help` | Show help (global or per-platform) | — |
+| `--version` | Print version | — |
+
+### 10x Genomics
+
+Automatically detects chemistry (v1–v4, multiome), strand specificity, and paired-end mode.
 
 ```bash
-STAR --runThreadN $CPUS --genomeDir $REF --runDirPerm All_RWX $GZIP $BAM \
-     --soloType SmartSeq --readFilesManifest ../$TAG.manifest.tsv \
-     --soloUMIdedup Exact --soloStrand Unstranded \
-     --limitOutSJcollapsed 10000000 --soloCellFilter None \
-     --soloFeatures Gene GeneFull --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+starsolo 10x /data/fastqs SAMPLE1 --species human
+starsolo 10x /data/fastqs SAMPLE1 --ref /path/to/index --bam
 ```
 
-Often, SMART-seq2 reads can benefit from trimming adapters, which can be turned on using `--clip3pAdapterSeq <3' adapter sequence>` option. Alternatively, `/scripts/bbduk.sh` can be used to trim adapters from reads prior to the alignment and quantification (this is the preferred option).  
+#### 10x chemistry detection
 
-### Counting the multimapping reads
+The script subsamples 200,000 reads and matches barcodes against all known whitelists:
 
-Default approach used by `Cell Ranger` (and `STARsolo` scripts above) is to discard all reads that map to multiple genomic locations with equal mapping quality. This approach creates a bias in gene expression estimation. Pseudocount-based methods correctly quantify multimapping reads, but generate false counts due to pseudo-alignment errors. These issues are described in good detail [here](https://www.biorxiv.org/content/10.1101/2021.05.05.442755v1). 
+| 10x version | Whitelist | CB len | UMI len | Strand |
+|:-:|:-:|:-:|:-:|:-:|
+| 3' v1 | 737K-april-2014_rc.txt | 14 | 10 | Forward |
+| 3' v2 | 737K-august-2016.txt | 16 | 10 | Forward |
+| 3' v3/v3.1 | 3M-february-2018.txt | 16 | 12 | Forward |
+| 3' v4 | 3M-3pgex-may-2023.txt | 16 | 12 | Forward |
+| 5' v1.1/v2 | 737K-august-2016.txt | 16 | 10 | Reverse |
+| 5' v3 | 737K-august-2016.txt | 16 | 12 | Reverse |
+| 5' v4 | 3M-5pgex-jan-2023.txt | 16 | 12 | Reverse |
+| multiome | 737K-arc-v1.txt | 16 | 12 | Forward |
 
-If you would like to process multimappers, add the following options: `--soloMultiMappers Uniform EM` (or simply `--soloMultiMappers EM`; this is on by default in v3.0+ of these scripts). This will generate an extra matrix in the `/raw` output folders. There will be non-integer numbers in the matrix because of split reads. If the downstream processing requires integers, you can round with a tool of your liking (e.g. `awk`). 
+#### Paired-end processing
 
-As of `STAR` v2.7.10a, **multimapper counting still does not work for SMART-seq2 or bulk RNA-seq processing**. 
+5' libraries with long R1 reads (>50 bp) are automatically processed in paired-end mode with `--soloBarcodeMate 1 --clip5pNbases 39 0`. 3' libraries are always single-end.
 
-### Running STARsolo on other scRNA-seq platforms 
+### Smart-seq / Smart-seq2
 
-STARsolo is very flexible and can be used with almost any scRNA-seq method, provided you know the library structure - i.e. where cell barcodes, UMIs, and biological parts of the read are located in the sequencing fragment or reads. A great source of information about scRNA-seq library structures is [this page](https://teichlab.github.io/scg_lib_structs/).
-
-Currently, our scripts directory provides dedicated scripts for:
-  - SMART-seq/SMART-seq2;
-  - Drop-seq;
-  - inDrops;
-  - Microwell-seq;
-  - BD Rhapsody;
-  - CEL-seq;
-  - STRT-seq. 
-
-Please contact `CellGenIT` if you need to process an unusual dataset. 
-
-## Quick evaluation of multiple STARsolo runs
-
-If you've used these scripts to process multiple 10X samples, you can get a quick look at the results by copying `solo_QC.sh` script from this repo to the directory with `STARsolo` output folders, and running
+Requires a **manifest file** — a tab-separated file with three columns: `R1_path`, `R2_path`, `cell_name`.
 
 ```bash
-./solo_QC.sh | column -t 
+starsolo smartseq manifest.tsv --species mouse
 ```
 
-The script is designed for 10X or other droplet-based methods. For SMART-seq2, if processing was done per plate, it will also produce an informative output. 
+Aliases: `smart-seq`, `ss2`
+
+### Drop-seq
+
+12 bp cell barcode, 8 bp UMI, no whitelist.
+
+```bash
+starsolo dropseq /data/fastqs SAMPLE1 --species human
+```
+
+Alias: `drop-seq`
+
+### BD Rhapsody
+
+3 barcode segments + 8 bp UMI. Requires `Rhapsody_bc1/2/3.txt` in the whitelist directory.
+
+```bash
+starsolo rhapsody /data/fastqs SAMPLE1 --species human
+```
+
+Aliases: `bd-rhapsody`, `bd`
+
+### inDrops
+
+2 barcode segments + adapter + 6 bp UMI. Requires `inDrops_Ambrose2_bc1/2.txt` in the whitelist directory.
+
+```bash
+starsolo indrops /data/fastqs SAMPLE1 --species human
+starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
+```
+
+Default adapter: `GAGTGATTGCTTGTGACGCCTT`
+
+### STRT-seq
+
+96-barcode whitelist, 8 bp cell barcode, 8 bp UMI. Requires `96_barcodes.list` in the whitelist directory.
+
+```bash
+starsolo strt /data/fastqs SAMPLE1 --species human --strand Forward
+```
+
+Extra option: `--strand <Forward|Reverse>` (default: `Forward`)
+
+Alias: `strt-seq`
+
+### QC aggregation
+
+Run from the parent directory containing per-sample output folders:
+
+```bash
+starsolo qc | column -t
+```
+
+Checks for:
+- Incomplete runs (`_STARtmp` still present)
+- Barcode cross-contamination between samples
+- Low mapping percentages
+
+Outputs a tab-separated table with read counts, mapping rates, cell counts, and configuration for each sample.
+
+## Configuration
+
+Edit [etc/defaults.conf](etc/defaults.conf) to change default paths and parameters. All values can also be set as environment variables:
+
+```bash
+export STARSOLO_REF_BASE=/my/references
+export STARSOLO_WL_DIR=/my/whitelists
+export STARSOLO_CPUS=8
+export STARSOLO_BAM_MODE=bam
+```
+
+CLI flags always take precedence over environment variables, which take precedence over config file defaults.
+
+## Helper scripts
+
+| Script | Purpose |
+|:--|:--|
+| [scripts/bbduk_trim.sh](scripts/bbduk_trim.sh) | Adapter/polyA trimming via BBMap |
+| [scripts/bsub_submit.sh](scripts/bsub_submit.sh) | Submit any starsolo command as an LSF job |
+
+### LSF submission
+
+```bash
+./scripts/bsub_submit.sh starsolo 10x /data/fastqs SAMPLE1 --species human
+```
+
+This submits with 16 CPUs / 64 GB RAM to the `normal` queue.
+
+## Resource requirements
+
+Default: **16 CPUs, 64–128 GB RAM**. Some datasets require 128 GB; if jobs fail with OOM errors, increase RAM in your job submission.
+
+## Docker
+
+The included [Dockerfile](Dockerfile) builds all required tools:
+
+```bash
+docker build -t starsolo .
+docker run -v /data:/data starsolo starsolo 10x /data/fastqs SAMPLE1 --species human
+```
+
+## Project structure
+
+```
+STARsolo/
+├── bin/
+│   └── starsolo              # CLI entrypoint (add to PATH)
+├── lib/
+│   ├── common.sh             # Shared functions (FASTQ discovery, compression, post-processing)
+│   ├── platform_10x.sh       # 10x Genomics logic
+│   ├── platform_smartseq.sh  # Smart-seq2 logic
+│   ├── platform_dropseq.sh   # Drop-seq logic
+│   ├── platform_rhapsody.sh  # BD Rhapsody logic
+│   ├── platform_indrops.sh   # inDrops logic
+│   └── platform_strt.sh      # STRT-seq logic
+├── etc/
+│   └── defaults.conf          # Default configuration
+├── scripts/
+│   ├── solo_qc.sh             # QC aggregation
+│   ├── bbduk_trim.sh          # Adapter trimming helper
+│   └── bsub_submit.sh         # LSF job submission helper
+├── Dockerfile
+├── install.sh
+├── LICENSE
+└── README.md
+```
+
+## License
+
+See [LICENSE](LICENSE).

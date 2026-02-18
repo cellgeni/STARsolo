@@ -1,0 +1,36 @@
+name: "Test Workflow"
+on:
+    push:
+        branches: [main, dev]
+    pull_request:
+        branches: [main, dev]
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        container: quay.io/cellgeni/reprocess_10x:1.1
+        strategy:
+            matrix:
+                include:
+                    - technology: 10x
+                    - technology: dropseq
+                    - technology: indrops
+                    - technology: smartseq
+                    - technology: rhapsody
+                    - technology: strt
+        name: "Run tests for ${{ matrix.technology }}"
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+            
+            - name: Unpack test data
+              run: tar -xzf data/test.tar.gz
+            
+            - name: Run tests
+              run: |
+                set -e
+                technology=${{ matrix.technology }}
+                bin/starsolo $technology data/test/fastqs/${technology} "$technology" --ref data/test/reference/index --whitelist-dir data/test/whitelists --no-bam --cpus 1
+    
+

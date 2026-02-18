@@ -30,22 +30,28 @@ jobs:
             
             - name: Run tests
               run: |
-                set -e
+                set -ex
                 technology=${{ matrix.technology }}
+                echo "Testing technology: $technology"
                 if [ "$technology" = "smartseq" ]; then
+                    echo "Running smartseq test..."
+                    ls -la data/test/fastqs/smartseq/
+                    cat data/test/fastqs/smartseq/smartseq_example.manifest.tsv
                     bin/starsolo smartseq \
                         data/test/fastqs/smartseq/smartseq_example.manifest.tsv \
                         --ref data/test/reference/index \
                         --no-bam \
-                        --cpus 1
+                        --cpus 1 2>&1
                 else
+                    echo "Running $technology test..."
+                    ls -la data/test/fastqs/${technology}/
                     bin/starsolo $technology \
                         data/test/fastqs/${technology} \
                         "$technology" \
                         --ref data/test/reference/index \
                         --whitelist-dir data/test/whitelists \
                         --no-bam \
-                        --cpus 1
+                        --cpus 1 2>&1
                 fi
     
 

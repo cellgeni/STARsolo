@@ -185,6 +185,13 @@ run_10x() {
     FQDIR_ABS=$(validate_fqdir "$FQDIR") || exit 1
     TAG=$(validate_tag "$TAG") || exit 1
 
+    # Convert paths to absolute before cd
+    REF=$(readlink -f "$REF")
+    WL=$(readlink -f "$WL")
+
+    # Create output directory and enter it
+    mkdir -p "$TAG" && cd "$TAG" || exit
+
     # 1. Discover FASTQs
     log_info "Discovering FASTQ files for sample '$TAG' …"
     local fq_info R1 R2
@@ -215,13 +222,6 @@ run_10x() {
     local strand_info STRAND PCTFWD PCTREV
     strand_info=$(_10x_determine_strand "$REF" "$CBLEN" "$UMILEN" "$CPUS" "$BC" "$PAIRED")
     IFS='|' read -r STRAND PCTFWD PCTREV PAIRED <<< "$strand_info"
-
-    # Convert paths to absolute before cd
-    REF=$(readlink -f "$REF")
-    BC=$(readlink -f "$BC")
-
-    # Create output directory and enter it
-    mkdir -p "$TAG" && cd "$TAG" || exit
 
     # 6. Log configuration
     _10x_write_config "$TAG" "$PAIRED" "$STRAND" "$PCTFWD" "$PCTREV" \

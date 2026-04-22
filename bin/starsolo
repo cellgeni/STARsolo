@@ -41,6 +41,7 @@ source "$STARSOLO_ROOT/lib/platform_dropseq.sh"
 source "$STARSOLO_ROOT/lib/platform_rhapsody.sh"
 source "$STARSOLO_ROOT/lib/platform_indrops.sh"
 source "$STARSOLO_ROOT/lib/platform_strt.sh"
+source "$STARSOLO_ROOT/lib/qc.sh"
 
 # ---------- Top-level help ---------------------------------------------------
 
@@ -85,7 +86,7 @@ Examples:
   starsolo rhapsody /data/fastqs SAMPLE1 --species human
   starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
   starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
-  starsolo qc
+  starsolo qc sample1/ sample2/ --species human
 EOF
 }
 
@@ -193,16 +194,6 @@ parse_droplet_args() {
     BAM=$(resolve_bam_flags "$BAM_MODE")
 }
 
-# ---------- QC subcommand ---------------------------------------------------
-
-run_qc() {
-    local QC_SCRIPT="$STARSOLO_ROOT/scripts/solo_qc.sh"
-    if [[ ! -x "$QC_SCRIPT" ]]; then
-        die "QC script not found: $QC_SCRIPT"
-    fi
-    exec bash "$QC_SCRIPT" "$@"
-}
-
 # ---------- Dispatch --------------------------------------------------------
 
 main() {
@@ -266,7 +257,10 @@ main() {
             run_strt "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$STRAND"
             ;;
         qc)
-            run_qc "$@"   # all remaining args (dirs, --whitelist-dir, --species, --help) forwarded as-is
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_qc_help; exit 0
+            fi
+            run_qc "$@"
             ;;
         *)
             die "Unknown platform: '$PLATFORM'. Run 'starsolo --help' for usage."

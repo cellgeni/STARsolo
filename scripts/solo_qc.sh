@@ -1,23 +1,114 @@
 #!/bin/bash
 # =============================================================================
-# solo_qc.sh — Aggregate QC statistics across STARsolo runs
+# solo_qc.sh — Aggregate QC statistics for one or more STARsolo output dirs
 # =============================================================================
-# Run from the parent directory that contains one subdirectory per sample
-# (each produced by a starsolo run).
+# Called by:  starsolo qc <dir1> [dir2 …] [--whitelist-dir <path>] [--species <name>]
+# Standalone: ./scripts/solo_qc.sh <dir1> [dir2 …] [options]
 #
-# Usage:
-#   starsolo qc                   # via the CLI
-#   ./scripts/solo_qc.sh          # standalone
+# When no directories are given it falls back to the old behaviour: glob every
+# subdirectory of the current working directory (i.e. run from the parent of
+# all sample dirs).
 #
 # Pipe through `column -t` for pretty-printed output:
-#   starsolo qc | column -t
+#   starsolo qc sample1/ sample2/ | column -t
 # =============================================================================
 
-# --- Check completion status ------------------------------------------------
+set -euo pipefail
+
+# ---------- Defaults (overridden by CLI) -------------------------------------
+
+FORCE_SPECIES=""
+CHECK_CONTAMINATION=1
+
+# ---------- Help -------------------------------------------------------------
+
+show_qc_help() {
+    cat <<EOF
+starsolo qc — aggregate QC stats across STARsolo runs
+
+Usage:
+  starsolo qc [<dir1> <dir2> … <dirN>] [options]
+
+Arguments:
+  <dir>          One or more STARsolo output directories.
+                 If omitted, every immediate subdirectory of \$PWD is used.
+
+Options:
+  -s, --species <name>      Override species label (e.g. human, mouse).
+                            By default the species is guessed from genomeDir in Log.out.
+  --no-contamination-check  Skip the cross-sample barcode contamination check.
+  -h, --help                Show this help and exit.
+EOF
+}
+
+# ---------- Argument parsing -------------------------------------------------
+
+DIRS=()
+
+if (( $# == 0 )); then
+    show_qc_help
+    exit 0
+fi
+
+while (( $# > 0 )); do
+    case "$1" in
+        -h|--help)
+            show_qc_help; exit 0 ;;
+        -s|--species|--specie)
+            FORCE_SPECIES="$2"; shift 2 ;;
+        --no-contamination-check)
+            CHECK_CONTAMINATION=0; shift ;;
+        -*)
+            echo "Unknown option: $1. Run 'starsolo qc --help'." >&2; exit 1 ;;
+        *)
+            DIRS+=("$1"); shift ;;
+    esac
+done
+
+# Strip trailing slashes for display / path construction
+CLEAN_DIRS=()
+for d in "${DIRS[@]}"; do
+    CLEAN_DIRS+=("${d%/}")
+done
+
+# ---------- Helpers ----------------------------------------------------------
+
+# Guess REF label from genomeDir line in Log.out
+guess_species() {
+    local logfile="$1"
+    local genomedir
+    genomedir=$(grep "^genomeDir" "$logfile" | tail -n1)
+    if echo "$genomedir" | grep -q "/human/"; then
+        echo "Human"
+    elif echo "$genomedir" | grep -q "/mouse/"; then
+        echo "Mouse"
+    else
+        echo "Other"
+    fi
+}
+
+# Guess whitelist version from soloCBwhitelist line in Log.out
+guess_wl() {
+    local logfile="$1"
+    local wlline
+    local wlfile
+    wlfile=$(grep "^soloCBwhitelist" "$logfile" | tail -n1 | awk '{print $NF}')
+    wlfile=$(basename "$wlfile")
+    case "$wlfile" in
+        3M-february-2018.txt)    echo "v3"    ;;
+        3M-3pgex-may-2023.txt)   echo "v4-3p" ;;
+        3M-5pgex-jan-2023.txt)   echo "v4-5p" ;;
+        737K-august-2016.txt)    echo "v2"    ;;
+        737K-april-2014_rc.txt)  echo "v1"    ;;
+        737K-arc-v1.txt)         echo "arc"   ;;
+        *)                       echo "Undef" ;;
+    esac
+}
+
+# ---------- Check completion status ------------------------------------------
 
 >&2 echo "Checking that all STARsolo jobs went to completion …"
-for i in */; do
-    i="${i%/}"
+for i in "${CLEAN_DIRS[@]}"; do
     if [[ -d "$i/output" && -s "$i/Log.final.out" ]]; then
         if [[ -d "$i/_STARtmp" ]]; then
             >&2 echo "WARNING: Sample $i did not run to completion: _STARtmp is still present!"
@@ -25,48 +116,52 @@ for i in */; do
     fi
 done
 
-# --- Check for cross-contamination -----------------------------------------
+# ---------- Check for cross-contamination ------------------------------------
 
->&2 echo "Checking potential sample cross-contamination …"
-for i in */; do
-    i="${i%/}"
-    if [[ -s "$i/output/Gene/filtered/barcodes.tsv.gz" ]]; then
-        for j in */; do
-            j="${j%/}"
-            if [[ -s "$j/output/Gene/filtered/barcodes.tsv.gz" && "$i" != "$j" ]]; then
-                if [[ ! -s "sorted.$i.barcodes.tsv" ]]; then
-                    zcat "$i/output/Gene/filtered/barcodes.tsv.gz" | sort > "sorted.$i.barcodes.tsv" &
-                fi
-                if [[ ! -s "sorted.$j.barcodes.tsv" ]]; then
-                    zcat "$j/output/Gene/filtered/barcodes.tsv.gz" | sort > "sorted.$j.barcodes.tsv" &
-                fi
-                wait
-                N1=$(wc -l < "sorted.$i.barcodes.tsv")
-                N2=$(wc -l < "sorted.$j.barcodes.tsv")
-                MIN=$(( N1 <= N2 ? N1 : N2 ))
-                COMM=$(comm -12 "sorted.$i.barcodes.tsv" "sorted.$j.barcodes.tsv" | wc -l)
-                PCT=$(echo "$COMM" | awk -v v="$MIN" '{printf "%d\n",100*$1/v+0.5}')
-                if (( PCT >= 20 )); then
-                    >&2 echo "WARNING: Samples $i ($N1 barcodes) and $j ($N2 barcodes) share $COMM ($PCT%) barcodes — higher than expected!"
-                fi
-            fi
-        done
-    elif [[ -d "$i/output" && -s "$i/Log.out" ]]; then
-        >&2 echo "Sample $i: no filtered output detected (probably plate-based)."
-    fi
-done
+if (( CHECK_CONTAMINATION )); then
+    >&2 echo "Checking potential sample cross-contamination …"
+    TMPDIR_SORT=$(mktemp -d)
+    trap 'rm -rf "$TMPDIR_SORT"' EXIT
 
-rm -f sorted.*.barcodes.tsv
+    for i in "${CLEAN_DIRS[@]}"; do
+        if [[ -s "$i/output/Gene/filtered/barcodes.tsv.gz" ]]; then
+            for j in "${CLEAN_DIRS[@]}"; do
+                if [[ -s "$j/output/Gene/filtered/barcodes.tsv.gz" && "$i" != "$j" ]]; then
+                    local_i="$TMPDIR_SORT/$(basename "$i").barcodes.tsv"
+                    local_j="$TMPDIR_SORT/$(basename "$j").barcodes.tsv"
+                    if [[ ! -s "$local_i" ]]; then
+                        zcat "$i/output/Gene/filtered/barcodes.tsv.gz" | sort > "$local_i" &
+                    fi
+                    if [[ ! -s "$local_j" ]]; then
+                        zcat "$j/output/Gene/filtered/barcodes.tsv.gz" | sort > "$local_j" &
+                    fi
+                    wait
+                    N1=$(wc -l < "$local_i")
+                    N2=$(wc -l < "$local_j")
+                    MIN=$(( N1 <= N2 ? N1 : N2 ))
+                    COMM=$(comm -12 "$local_i" "$local_j" | wc -l)
+                    PCT=$(echo "$COMM" | awk -v v="$MIN" '{printf "%d\n",100*$1/v+0.5}')
+                    if (( PCT >= 20 )); then
+                        >&2 echo "WARNING: Samples $i ($N1 barcodes) and $j ($N2 barcodes) share $COMM ($PCT%) barcodes — higher than expected!"
+                    fi
+                fi
+            done
+        elif [[ -d "$i/output" && -s "$i/Log.out" ]]; then
+            >&2 echo "Sample $i: no filtered output detected (probably plate-based)."
+        fi
+    done
+else
+    >&2 echo "Skipping cross-contamination check (--no-contamination-check)."
+fi
 
-# --- Extract and output statistics ------------------------------------------
+# ---------- Extract and output statistics ------------------------------------
 
 >&2 echo "Extracting STARsolo stats …"
 >&2 echo
 
 echo -e "Sample\tRd_all\tRd_in_cells\tFrc_in_cells\tUMI_in_cells\tCells\tMed_nFeature\tGood_BC\tWL\tSpecies\tPaired\tStrand\tall_u+m\tall_u\texon_u+m\texon_u\tfull_u+m\tfull_u"
 
-for i in */; do
-    i="${i%/}"
+for i in "${CLEAN_DIRS[@]}"; do
 
     if [[ -d "$i/output/Gene/filtered/" && -s "$i/Log.out" ]]; then
         # --- Droplet-based ---
@@ -75,23 +170,13 @@ for i in */; do
             PAIRED="Paired"
         fi
 
-        REF="Other"
-        if grep "^genomeDir" "$i/Log.out" | tail -n1 | grep -q "/human/"; then
-            REF="Human"
-        elif grep "^genomeDir" "$i/Log.out" | tail -n1 | grep -q "/mouse/"; then
-            REF="Mouse"
+        if [[ -n "$FORCE_SPECIES" ]]; then
+            REF="$FORCE_SPECIES"
+        else
+            REF=$(guess_species "$i/Log.out")
         fi
 
-        WL="Undef"
-        if grep "^soloCBwhitelist" "$i/Log.out" | tail -n1 | grep -q "3M-february-2018.txt"; then
-            WL="v3"
-        elif grep "^soloCBwhitelist" "$i/Log.out" | tail -n1 | grep -q "737K-august-2016.txt"; then
-            WL="v2"
-        elif grep "^soloCBwhitelist" "$i/Log.out" | tail -n1 | grep -q "737K-april-2014_rc.txt"; then
-            WL="v1"
-        elif grep "^soloCBwhitelist" "$i/Log.out" | tail -n1 | grep -q "737K-arc-v1.txt"; then
-            WL="arc"
-        fi
+        WL=$(guess_wl "$i/Log.out")
 
         R1=$(grep "Number of Reads,"             "$i/output/Gene/Summary.csv"     | awk -F "," '{print $2}')
         B=$( grep "Reads With Valid Barcodes,"    "$i/output/Gene/Summary.csv"     | awk -F "," '{print $2}')
@@ -128,11 +213,10 @@ for i in */; do
             PAIRED="Paired"
         fi
 
-        REF="Other"
-        if grep "^genomeDir" "$i/Log.out" | tail -n1 | grep -q "/human/"; then
-            REF="Human"
-        elif grep "^genomeDir" "$i/Log.out" | tail -n1 | grep -q "/mouse/"; then
-            REF="Mouse"
+        if [[ -n "$FORCE_SPECIES" ]]; then
+            REF="$FORCE_SPECIES"
+        else
+            REF=$(guess_species "$i/Log.out")
         fi
 
         WL="Undef"

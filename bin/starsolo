@@ -60,7 +60,7 @@ Platforms:
   rhapsody    BD Rhapsody (3 barcode segments, 8 bp UMI)
   indrops     inDrops (2 barcode segments + adapter, 6 bp UMI)
   strt        STRT-seq (96-barcode whitelist, 8 bp CB, 8 bp UMI)
-  qc          Aggregate QC stats across completed runs
+  qc          Aggregate QC stats across completed runs (see: starsolo qc --help)
 
 Global options (available for all platforms):
   -s, --species <name>      Species (e.g. human, mouse); resolves reference
@@ -266,7 +266,7 @@ main() {
             run_strt "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$STRAND"
             ;;
         qc)
-            run_qc "$@"
+            run_qc "$@"   # all remaining args (dirs, --whitelist-dir, --species, --help) forwarded as-is
             ;;
         *)
             die "Unknown platform: '$PLATFORM'. Run 'starsolo --help' for usage."

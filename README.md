@@ -171,18 +171,54 @@ Alias: `strt-seq`
 
 ### QC aggregation
 
-Run from the parent directory containing per-sample output folders:
-
 ```bash
-starsolo qc | column -t
+starsolo qc <dir1> [dir2 … dirN] [options]
 ```
 
-Checks for:
-- Incomplete runs (`_STARtmp` still present)
-- Barcode cross-contamination between samples
-- Low mapping percentages
+Pass one or more STARsolo output directories as positional arguments:
 
-Outputs a tab-separated table with read counts, mapping rates, cell counts, and configuration for each sample.
+```bash
+starsolo qc sample1/ sample2/ sample3/
+starsolo qc results/GSM* | column -t
+starsolo qc sample1/ sample2/ --species human
+starsolo qc sample1/ sample2/ --no-contamination-check
+```
+
+#### QC options
+
+| Flag | Description | Default |
+|:--|:--|:--|
+| `-s, --species <name>` | Override species label in output (e.g. `human`, `mouse`) | guessed from `genomeDir` in `Log.out` |
+| `--no-contamination-check` | Skip cross-sample barcode overlap check | off (check runs by default) |
+| `-h, --help` | Show help | — |
+
+#### Checks performed
+
+- **Completion** — warns if `_STARtmp` is still present (run did not finish)
+- **Cross-contamination** — compares filtered barcodes between every pair of samples; warns if overlap exceeds 20%
+- **Low mapping** — warns if `GeneFull` unique mapping rate is ≤ 20%
+
+#### Output columns
+
+Outputs a tab-separated table to stdout (pipe through `column -t` for aligned display):
+
+| Column | Description |
+|:--|:--|
+| `Sample` | Directory name |
+| `Rd_all` | Total reads |
+| `Rd_in_cells` | Reads in cells (GeneFull) |
+| `Frc_in_cells` | Fraction of reads in cells |
+| `UMI_in_cells` | UMIs in cells |
+| `Cells` | Estimated number of cells |
+| `Med_nFeature` | Median genes per cell |
+| `Good_BC` | Fraction of reads with valid barcodes |
+| `WL` | Detected whitelist (`v1`, `v2`, `v3`, `v4-3p`, `v4-5p`, `arc`) |
+| `Species` | Species label |
+| `Paired` | `Single` or `Paired` |
+| `Strand` | Strand specificity |
+| `all_u+m` / `all_u` | Genome mapping rate (unique+multi / unique) |
+| `exon_u+m` / `exon_u` | Exonic (Gene) mapping rate |
+| `full_u+m` / `full_u` | Full-gene (GeneFull) mapping rate |
 
 ## Configuration
 
@@ -202,7 +238,7 @@ CLI flags always take precedence over environment variables, which take preceden
 | Script | Purpose |
 |:--|:--|
 | [scripts/bbduk_trim.sh](scripts/bbduk_trim.sh) | Adapter/polyA trimming via BBMap |
-| [scripts/bsub_submit.sh](scripts/bsub_submit.sh) | Submit any starsolo command as an LSF job |
+| [scripts/bsub_submit.sh](scripts/bsub_submit.sh) | Submit any `starsolo` command as an LSF job |
 
 ### LSF submission
 
@@ -238,7 +274,8 @@ STARsolo/
 │   ├── platform_dropseq.sh   # Drop-seq logic
 │   ├── platform_rhapsody.sh  # BD Rhapsody logic
 │   ├── platform_indrops.sh   # inDrops logic
-│   └── platform_strt.sh      # STRT-seq logic
+│   ├── platform_strt.sh      # STRT-seq logic
+│   └── qc.sh                 # QC aggregation logic
 ├── etc/
 │   └── defaults.conf          # Default configuration
 ├── scripts/

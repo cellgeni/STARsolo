@@ -41,6 +41,7 @@ source "$STARSOLO_ROOT/lib/platform_dropseq.sh"
 source "$STARSOLO_ROOT/lib/platform_rhapsody.sh"
 source "$STARSOLO_ROOT/lib/platform_indrops.sh"
 source "$STARSOLO_ROOT/lib/platform_strt.sh"
+source "$STARSOLO_ROOT/lib/qc.sh"
 
 # ---------- Top-level help ---------------------------------------------------
 
@@ -60,7 +61,7 @@ Platforms:
   rhapsody    BD Rhapsody (3 barcode segments, 8 bp UMI)
   indrops     inDrops (2 barcode segments + adapter, 6 bp UMI)
   strt        STRT-seq (96-barcode whitelist, 8 bp CB, 8 bp UMI)
-  qc          Aggregate QC stats across completed runs
+  qc          Aggregate QC stats across completed runs (see: starsolo qc --help)
 
 Global options (available for all platforms):
   -s, --species <name>      Species (e.g. human, mouse); resolves reference
@@ -85,7 +86,7 @@ Examples:
   starsolo rhapsody /data/fastqs SAMPLE1 --species human
   starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
   starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
-  starsolo qc
+  starsolo qc sample1/ sample2/ --species human
 EOF
 }
 
@@ -193,16 +194,6 @@ parse_droplet_args() {
     BAM=$(resolve_bam_flags "$BAM_MODE")
 }
 
-# ---------- QC subcommand ---------------------------------------------------
-
-run_qc() {
-    local QC_SCRIPT="$STARSOLO_ROOT/scripts/solo_qc.sh"
-    if [[ ! -x "$QC_SCRIPT" ]]; then
-        die "QC script not found: $QC_SCRIPT"
-    fi
-    exec bash "$QC_SCRIPT" "$@"
-}
-
 # ---------- Dispatch --------------------------------------------------------
 
 main() {
@@ -266,6 +257,9 @@ main() {
             run_strt "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$STRAND"
             ;;
         qc)
+            if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+                show_qc_help; exit 0
+            fi
             run_qc "$@"
             ;;
         *)

@@ -2,7 +2,7 @@
 # =============================================================================
 # starsolo — unified CLI for STARsolo scRNA-seq processing
 # =============================================================================
-# Version 4.0
+# Version 4.1
 #
 # Usage:  starsolo <platform> [args…]
 #         starsolo --help
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-STARSOLO_VERSION="4.0"
+STARSOLO_VERSION="4.1"
 
 # ---------- Resolve install paths -------------------------------------------
 

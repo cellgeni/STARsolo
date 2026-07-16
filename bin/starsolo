@@ -2,7 +2,7 @@
 # =============================================================================
 # starsolo — unified CLI for STARsolo scRNA-seq processing
 # =============================================================================
-# Version 4.0
+# Version 4.2
 #
 # Usage:  starsolo <platform> [args…]
 #         starsolo --help
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-STARSOLO_VERSION="4.0"
+STARSOLO_VERSION="4.2"
 
 # ---------- Resolve install paths -------------------------------------------
 
@@ -72,6 +72,8 @@ Global options (available for all platforms):
   --no-bam                  No BAM output (default)
   -h, --help                Show help (per-platform if after platform name)
   --version                 Print version
+  --                        Pass all following arguments verbatim to STAR
+                             (must come last; appended after built-in flags)
 
 Configuration:
   Defaults are read from $STARSOLO_ROOT/etc/defaults.conf
@@ -87,6 +89,7 @@ Examples:
   starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
   starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
   starsolo qc sample1/ sample2/ --species human
+  starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull SJ
 EOF
 }
 
@@ -114,6 +117,9 @@ parse_droplet_args() {
     # Platform-specific defaults
     ADAPTER="GAGTGATTGCTTGTGACGCCTT"   # indrops
     STRAND="Forward"                    # strt
+
+    # Extra args passed verbatim to STAR (global array, read by run_* functions)
+    STAR_EXTRA_ARGS=()
 
     # Consume positional args first (up to 2)
     local POSITIONALS=()
@@ -180,6 +186,10 @@ parse_droplet_args() {
             -h|--help)
                 "show_${PLATFORM}_help"
                 exit 0 ;;
+            --)
+                # Everything after '--' is passed verbatim to STAR.
+                STAR_EXTRA_ARGS=("${FLAGS[@]:$((j+1))}")
+                break ;;
             *)
                 die "Unknown option: ${FLAGS[$j]}. Run 'starsolo $PLATFORM --help'." ;;
         esac

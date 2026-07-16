@@ -43,7 +43,8 @@ jobs:
                         data/test/fastqs/smartseq/smartseq_example.manifest.tsv \
                         --ref data/test/reference/index \
                         --no-bam \
-                        --cpus 1
+                        --cpus 1 \
+                        -- --winAnchorMultimapNmax 50
                 else
                     bin/starsolo $technology \
                         data/test/fastqs/${technology} \
@@ -51,7 +52,8 @@ jobs:
                         --ref data/test/reference/index \
                         --whitelist-dir data/test/whitelists \
                         --no-bam \
-                        --cpus 1
+                        --cpus 1 \
+                        -- --winAnchorMultimapNmax 50
                 fi
     
 

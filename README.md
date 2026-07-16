@@ -87,6 +87,28 @@ starsolo <platform> <args…> [options]
 | `--no-bam` | Suppress BAM output (default) | ✅ |
 | `-h, --help` | Show help (global or per-platform) | — |
 | `--version` | Print version | — |
+| `--` | Pass all following arguments verbatim to `STAR` | — |
+
+### Passing extra options to STAR
+
+Any arguments after a `--` sentinel are passed verbatim to the underlying `STAR`
+command, appended after the built-in flags. This works on every platform and lets
+you override defaults or set options the CLI doesn't expose:
+
+```bash
+starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull SJ
+```
+
+The `--` must come last, after all `starsolo` options.
+
+**Overriding built-in flags.** Passthrough arguments are appended *after* the
+flags the CLI sets. STAR uses the last occurrence of a repeated parameter, so a
+passthrough flag overrides the built-in value of the same name — e.g.
+`-- --outFilterScoreMin 20` replaces the default `--outFilterScoreMin 30`. For
+multi-value parameters this is a full replacement, not a merge:
+`-- --soloFeatures Gene GeneFull SJ` replaces the built-in feature list
+entirely. (The parameter does appear twice on the resulting command line; this
+is expected and harmless.)
 
 ### 10x Genomics
 

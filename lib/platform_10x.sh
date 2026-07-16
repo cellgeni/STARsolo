@@ -244,7 +244,8 @@ run_10x() {
             --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx
+            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            "${STAR_EXTRA_ARGS[@]}"
     else
         STAR --runThreadN "$CPUS" --genomeDir "$REF" \
             --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
@@ -256,7 +257,8 @@ run_10x() {
             --clipAdapterType CellRanger4 --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx
+            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            "${STAR_EXTRA_ARGS[@]}"
     fi
 
     # 8. Cleanup & compress
@@ -285,6 +287,7 @@ Options:
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
+  --                        Pass all following arguments verbatim to STAR
   -h, --help                Show this help
 EOF
 }

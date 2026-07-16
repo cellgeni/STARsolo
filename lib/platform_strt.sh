@@ -49,7 +49,8 @@ run_strt() {
         --limitOutSJcollapsed 10000000 --soloCellFilter None \
         --soloFeatures Gene GeneFull \
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        --outReadsUnmapped Fastx
+        --outReadsUnmapped Fastx \
+        "${STAR_EXTRA_ARGS[@]}"
 
     process_output_files "output"
 }
@@ -74,6 +75,7 @@ Options:
   --strand <Forward|Reverse> Strand specificity           [default: Forward]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
+  --                        Pass all following arguments verbatim to STAR
   -h, --help                Show this help
 EOF
 }

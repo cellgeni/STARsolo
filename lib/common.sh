@@ -78,10 +78,10 @@ process_output_files() {
 
     # Compress unmapped reads
     if [[ -s "Unmapped.out.mate1" ]]; then
-        pbzip2 -9 Unmapped.out.mate1 &
+        pbzip2 -p $CPUS -9 Unmapped.out.mate1 &
     fi
     if [[ -s "Unmapped.out.mate2" ]]; then
-        pbzip2 -9 Unmapped.out.mate2 &
+        pbzip2 -p $CPUS -9 Unmapped.out.mate2 &
     fi
     wait
 

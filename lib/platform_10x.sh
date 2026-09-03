@@ -244,7 +244,7 @@ run_10x() {
             --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            --soloMultiMappers EM \
             "${STAR_EXTRA_ARGS[@]}"
     else
         STAR --runThreadN "$CPUS" --genomeDir "$REF" \
@@ -257,7 +257,7 @@ run_10x() {
             --clipAdapterType CellRanger4 --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            --soloMultiMappers EM \
             "${STAR_EXTRA_ARGS[@]}"
     fi
 

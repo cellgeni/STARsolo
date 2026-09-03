@@ -36,7 +36,6 @@ run_dropseq() {
         --soloBarcodeReadLength 0 \
         --soloFeatures Gene GeneFull \
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        --outReadsUnmapped Fastx \
         "${STAR_EXTRA_ARGS[@]}"
 
     process_output_files "output"

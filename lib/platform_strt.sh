@@ -49,7 +49,6 @@ run_strt() {
         --limitOutSJcollapsed 10000000 --soloCellFilter None \
         --soloFeatures Gene GeneFull \
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        --outReadsUnmapped Fastx \
         "${STAR_EXTRA_ARGS[@]}"
 
     process_output_files "output"

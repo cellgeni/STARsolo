@@ -47,7 +47,6 @@ run_indrops() {
         --soloUMIposition 3_9_3_14 \
         --soloFeatures Gene GeneFull \
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        --outReadsUnmapped Fastx \
         "${STAR_EXTRA_ARGS[@]}"
 
     process_output_files "output"

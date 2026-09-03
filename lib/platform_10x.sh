@@ -33,9 +33,56 @@ _10x_extract_test_reads() {
     rm -f *.R1_head *.R2_head
 }
 
+# Resolves a chemistry name to its whitelist file and CB/UMI geometry.
+# Names match the chemistry ids emitted by infer_10x_run.py, plus short
+# aliases for interactive use.
+#   $1: chemistry name  $2: WL directory
+# Prints: "BC|CBLEN|UMILEN"
+_10x_resolve_chemistry() {
+    local NAME=$1 WL=$2
+    local FILE CBLEN UMILEN
+
+    case "${NAME,,}" in
+        gex_3pv1|v1|3pv1)
+            FILE=737K-april-2014_rc.txt;  CBLEN=14; UMILEN=10 ;;
+        gex_3pv2_or_5pv1v2|v2|3pv2|5pv1|5pv2)
+            FILE=737K-august-2016.txt;    CBLEN=16; UMILEN=10 ;;
+        gex_3pv3_family|v3|3pv3)
+            FILE=3M-february-2018.txt;    CBLEN=16; UMILEN=12 ;;
+        gex_3pv4_gemx|v4|3pv4)
+            FILE=3M-3pgex-may-2023.txt;   CBLEN=16; UMILEN=12 ;;
+        gex_5pv3_gemx|5pv3)
+            FILE=3M-5pgex-jan-2023.txt;   CBLEN=16; UMILEN=12 ;;
+        gex_multiome_arc_v1|multiome|arc)
+            # infer_10x_run.py prefers the gex_-prefixed copy; fall back to the
+            # unprefixed name for older whitelist directories.
+            FILE=gex_737K-arc-v1.txt
+            [[ -s "$WL/$FILE" ]] || FILE=737K-arc-v1.txt
+            CBLEN=16; UMILEN=12 ;;
+        atac_*|atac)
+            die "Chemistry '$NAME' is ATAC; STARsolo 10x handles gene expression only." ;;
+        *)
+            die "Unknown chemistry '$NAME'. Valid: gex_3pv1, gex_3pv2_or_5pv1v2, gex_3pv3_family, gex_3pv4_gemx, gex_5pv3_gemx, gex_multiome_arc_v1 (aliases: v1, v2, v3, v4, 5pv3, multiome)." ;;
+    esac
+
+    [[ -s "$WL/$FILE" ]] || die "Whitelist for '$NAME' not found: $WL/$FILE"
+    echo "$WL/$FILE|$CBLEN|$UMILEN"
+}
+
+# Measures read lengths from the subsampled test reads.
+# Prints: "R1LEN|R2LEN|R1DIS"
+_10x_read_metrics() {
+    local R1LEN R2LEN R1DIS
+    R1LEN=$(awk 'NR%4==2' test.R1.fastq | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}')
+    R2LEN=$(awk 'NR%4==2' test.R2.fastq | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}')
+    R1DIS=$(awk 'NR%4==2' test.R1.fastq | awk '{print length($0)}' | sort | uniq -c | wc -l)
+
+    echo "$R1LEN|$R2LEN|$R1DIS"
+}
+
 # Determines the correct barcode whitelist.
 #   $1: WL directory
-# Prints: "BC|NBC1|NBC2|NBC3|NBC4|NBC5|NBCA|R1LEN|R2LEN|R1DIS"
+# Prints: "BC|NBC1|NBC2|NBC3|NBC4|NBC5|NBCA"
 _10x_determine_whitelist() {
     local WL=$1
 
@@ -46,11 +93,6 @@ _10x_determine_whitelist() {
     NBC4=$(awk 'NR%4==2' test.R1.fastq | cut -c-16 | grep -F -f "$WL/3M-3pgex-may-2023.txt"  | wc -l)
     NBC5=$(awk 'NR%4==2' test.R1.fastq | cut -c-16 | grep -F -f "$WL/3M-5pgex-jan-2023.txt"  | wc -l)
     NBCA=$(awk 'NR%4==2' test.R1.fastq | cut -c-16 | grep -F -f "$WL/737K-arc-v1.txt"        | wc -l)
-
-    local R1LEN R2LEN R1DIS
-    R1LEN=$(awk 'NR%4==2' test.R1.fastq | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}')
-    R2LEN=$(awk 'NR%4==2' test.R2.fastq | awk '{sum+=length($0)} END {printf "%d\n",sum/NR+0.5}')
-    R1DIS=$(awk 'NR%4==2' test.R1.fastq | awk '{print length($0)}' | sort | uniq -c | wc -l)
 
     local BC=""
     if   (( NBC3 > 50000 )); then BC="$WL/3M-february-2018.txt"
@@ -63,25 +105,14 @@ _10x_determine_whitelist() {
         die "No whitelist matched 200,000 random barcodes! Counts: v1=$NBC1 v2=$NBC2 v3=$NBC3 v4-3p=$NBC4 v4-5p=$NBC5 multiome=$NBCA"
     fi
 
-    echo "$BC|$NBC1|$NBC2|$NBC3|$NBC4|$NBC5|$NBCA|$R1LEN|$R2LEN|$R1DIS"
+    echo "$BC|$NBC1|$NBC2|$NBC3|$NBC4|$NBC5|$NBCA"
 }
 
-# Checks read lengths and sets barcode/UMI parameters.
-#   $1: R1DIS  $2: R1LEN  $3: R2LEN  $4: BC  $5: WL
-# Prints: "PAIRED|CBLEN|UMILEN"
-_10x_check_read_lengths() {
-    local R1DIS=$1 R1LEN=$2 R2LEN=$3 BC=$4 WL=$5
-    local PAIRED=False CBLEN UMILEN
-
-    if (( R1DIS > 1 && R1LEN <= 30 )); then
-        die "Read 1 (barcode) has varying length; possibly quality-trimmed."
-    elif (( R1LEN < 24 )); then
-        die "Read 1 (barcode) is less than 24 bp. Check FASTQ files."
-    elif (( R2LEN < 40 )); then
-        die "Read 2 (biological read) is less than 40 bp. Check FASTQ files."
-    fi
-
-    (( R1LEN > 50 )) && PAIRED=True
+# Maps a whitelist file name to its CB/UMI geometry.
+#   $1: BC (whitelist path)
+# Prints: "CBLEN|UMILEN"
+_10x_whitelist_geometry() {
+    local BC=$1 CBLEN UMILEN
 
     case "$BC" in
         *3M-february-2018.txt|*737K-arc-v1.txt|*3M-3pgex-may-2023.txt|*3M-5pgex-jan-2023.txt)
@@ -90,11 +121,40 @@ _10x_check_read_lengths() {
             CBLEN=16; UMILEN=10 ;;
         *737K-april-2014_rc.txt)
             CBLEN=14; UMILEN=10 ;;
+        *)
+            die "Cannot determine CB/UMI geometry for whitelist: $BC" ;;
     esac
+
+    echo "$CBLEN|$UMILEN"
+}
+
+# Checks read lengths and reconciles barcode/UMI parameters against R1.
+#   $1: R1DIS  $2: R1LEN  $3: R2LEN  $4: CBLEN  $5: UMILEN
+#   $6: SKIPLEN – "True" downgrades the fatal sanity checks to warnings
+# Prints: "PAIRED|CBLEN|UMILEN"
+_10x_check_read_lengths() {
+    local R1DIS=$1 R1LEN=$2 R2LEN=$3 CBLEN=$4 UMILEN=$5 SKIPLEN=${6:-False}
+    local PAIRED=False
+
+    # With --skip-length-checks the same problems are reported but not fatal.
+    local ONBAD=die
+    [[ $SKIPLEN == "True" ]] && ONBAD=log_warn
+
+    if (( R1DIS > 1 && R1LEN <= 30 )); then
+        $ONBAD "Read 1 (barcode) has varying length; possibly quality-trimmed."
+    elif (( R1LEN < 24 )); then
+        $ONBAD "Read 1 (barcode) is less than 24 bp. Check FASTQ files."
+    elif (( R2LEN < 40 )); then
+        $ONBAD "Read 2 (biological read) is less than 40 bp. Check FASTQ files."
+    fi
+
+    (( R1LEN > 50 )) && PAIRED=True
 
     local BCUMI=$((CBLEN + UMILEN))
     if (( BCUMI > R1LEN )); then
         local NEWUMI=$((R1LEN - CBLEN))
+        # Always fatal: STAR cannot run without at least a 1 bp UMI.
+        (( NEWUMI > 0 )) || die "R1 length ($R1LEN) leaves no room for a UMI after the ${CBLEN} bp barcode."
         log_warn "R1 length ($R1LEN) < barcode+UMI ($BCUMI). Setting UMI length to $NEWUMI."
         UMILEN=$NEWUMI
     elif (( BCUMI < R1LEN )); then
@@ -164,7 +224,7 @@ _10x_write_config() {
         echo "Paired-end mode: $PAIRED"
         echo "Strand (Forward=3', Reverse=5'): $STRAND  (%fwd=$PCTFWD, %rev=$PCTREV)"
         echo "CB whitelist: $BC"
-        echo "  Matches /200k: v3=$NBC3 v2=$NBC2 v1=$NBC1 v4-3p=$NBC4 v4-5p=$NBC5 multiome=$NBCA"
+        echo "  Matches /200k: v3=$NBC3 v2=$NBC2 v1=$NBC1 v4-3p=$NBC4 v4-5p=$NBC5 multiome=$NBCA (NA = chemistry given via --wl)"
         echo "CB length: $CBLEN    UMI length: $UMILEN"
         echo "Compression: ${GZIP:-none}"
         echo "-----------------------------------------------------------------------------"
@@ -179,7 +239,7 @@ _10x_write_config() {
 # Entry point called by bin/starsolo.
 #   Arguments come from the CLI parser.
 run_10x() {
-    local FQDIR=$1 TAG=$2 CPUS=$3 REF=$4 WL=$5 BAM=$6
+    local FQDIR=$1 TAG=$2 CPUS=$3 REF=$4 WL=$5 BAM=$6 CHEM=${7:-} SKIPLEN=${8:-False}
 
     local FQDIR_ABS
     FQDIR_ABS=$(validate_fqdir "$FQDIR") || exit 1
@@ -203,18 +263,34 @@ run_10x() {
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
 
-    # 3. Chemistry detection
-    log_info "Subsampling reads for chemistry detection …"
+    # 3. Chemistry: subsample reads, then either use the given chemistry or detect it
+    log_info "Subsampling reads …"
     _10x_extract_test_reads "$R1" "$R2" "$ZCMD"
 
-    log_info "Determining barcode whitelist …"
-    local wl_info BC NBC1 NBC2 NBC3 NBC4 NBC5 NBCA R1LEN R2LEN R1DIS
-    wl_info=$(_10x_determine_whitelist "$WL")
-    IFS='|' read -r BC NBC1 NBC2 NBC3 NBC4 NBC5 NBCA R1LEN R2LEN R1DIS <<< "$wl_info"
+    local rm_info R1LEN R2LEN R1DIS
+    rm_info=$(_10x_read_metrics)
+    IFS='|' read -r R1LEN R2LEN R1DIS <<< "$rm_info"
+
+    local BC NBC1 NBC2 NBC3 NBC4 NBC5 NBCA CBLEN UMILEN
+    if [[ -n $CHEM ]]; then
+        local chem_info
+        chem_info=$(_10x_resolve_chemistry "$CHEM" "$WL")
+        IFS='|' read -r BC CBLEN UMILEN <<< "$chem_info"
+        NBC1=NA; NBC2=NA; NBC3=NA; NBC4=NA; NBC5=NA; NBCA=NA
+        log_info "Using chemistry '$CHEM' → $BC (skipping whitelist matching)"
+    else
+        log_info "Determining barcode whitelist …"
+        local wl_info geom_info
+        wl_info=$(_10x_determine_whitelist "$WL")
+        IFS='|' read -r BC NBC1 NBC2 NBC3 NBC4 NBC5 NBCA <<< "$wl_info"
+        geom_info=$(_10x_whitelist_geometry "$BC")
+        IFS='|' read -r CBLEN UMILEN <<< "$geom_info"
+    fi
 
     # 4. Read length checks
-    local rl_info PAIRED CBLEN UMILEN
-    rl_info=$(_10x_check_read_lengths "$R1DIS" "$R1LEN" "$R2LEN" "$BC" "$WL")
+    local rl_info PAIRED
+    [[ $SKIPLEN == "True" ]] && log_warn "Read-length validation disabled (--skip-length-checks)."
+    rl_info=$(_10x_check_read_lengths "$R1DIS" "$R1LEN" "$R2LEN" "$CBLEN" "$UMILEN" "$SKIPLEN")
     IFS='|' read -r PAIRED CBLEN UMILEN <<< "$rl_info"
 
     # 5. Strand specificity
@@ -244,7 +320,7 @@ run_10x() {
             --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            --soloMultiMappers EM \
             "${STAR_EXTRA_ARGS[@]}"
     else
         STAR --runThreadN "$CPUS" --genomeDir "$REF" \
@@ -257,7 +333,7 @@ run_10x() {
             --clipAdapterType CellRanger4 --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM --outReadsUnmapped Fastx \
+            --soloMultiMappers EM \
             "${STAR_EXTRA_ARGS[@]}"
     fi
 
@@ -284,6 +360,18 @@ Options:
                              Resolves reference via $REF_BASE/<species>/2020A/index
   -r, --ref <path>          Explicit STAR reference index (overrides --species)
   -w, --whitelist-dir <dir> Barcode whitelist directory  [default: from config]
+      --wl <chemistry>      Use this chemistry instead of detecting it. Names
+                             chemistry ids:
+                               gex_3pv1              (alias v1)
+                               gex_3pv2_or_5pv1v2    (alias v2)
+                               gex_3pv3_family       (alias v3)
+                               gex_3pv4_gemx         (alias v4)
+                               gex_5pv3_gemx         (alias 5pv3)
+                               gex_multiome_arc_v1   (alias multiome, arc)
+      --skip-length-checks  Do not abort on unexpected read lengths (short R1,
+                             short R2, or variable-length R1); the same problems
+                             are reported as warnings and the run continues.
+                             A UMI-less R1 remains a fatal error.
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)

@@ -82,6 +82,8 @@ starsolo <platform> <args…> [options]
 | `-s, --species <name>` | Species name (`human`, `mouse`, …) — resolves reference automatically | — |
 | `-r, --ref <path>` | Explicit STAR index path (overrides `--species`) | — |
 | `-w, --whitelist-dir <dir>` | Barcode whitelist directory | from config |
+| `--wl <chemistry>` | **10x only** — use this chemistry instead of detecting it | auto-detect |
+| `--skip-length-checks` | **10x only** — warn instead of aborting on unexpected read lengths | off |
 | `-c, --cpus <N>` | Number of threads | `16` |
 | `--bam` | Output coordinate-sorted BAM | off |
 | `--no-bam` | Suppress BAM output (default) | ✅ |
@@ -112,11 +114,12 @@ is expected and harmless.)
 
 ### 10x Genomics
 
-Automatically detects chemistry (v1–v4, multiome), strand specificity, and paired-end mode.
+Automatically detects chemistry (v1–v4, multiome), strand specificity, and paired-end mode. Chemistry detection can be bypassed with [`--wl`](#skipping-chemistry-detection---wl) when it is already known.
 
 ```bash
 starsolo 10x /data/fastqs SAMPLE1 --species human
 starsolo 10x /data/fastqs SAMPLE1 --ref /path/to/index --bam
+starsolo 10x /data/fastqs SAMPLE1 --species human --wl gex_3pv3_family
 ```
 
 #### 10x chemistry detection
@@ -133,6 +136,51 @@ The script subsamples 200,000 reads and matches barcodes against all known white
 | 5' v3 | 737K-august-2016.txt | 16 | 12 | Reverse |
 | 5' v4 | 3M-5pgex-jan-2023.txt | 16 | 12 | Reverse |
 | multiome | 737K-arc-v1.txt | 16 | 12 | Forward |
+
+#### Skipping chemistry detection (`--wl`)
+
+If the chemistry is already known, `--wl <chemistry>` selects the whitelist and
+CB/UMI geometry directly and skips the barcode-matching step. Names match the
+chemistry ids emitted by `infer_10x_run.py`, so a value taken from that script's
+JSON report can be passed straight through:
+
+| `--wl` value | Alias | Whitelist | CB len | UMI len |
+|:--|:-:|:--|:-:|:-:|
+| `gex_3pv1` | `v1` | 737K-april-2014_rc.txt | 14 | 10 |
+| `gex_3pv2_or_5pv1v2` | `v2` | 737K-august-2016.txt | 16 | 10 |
+| `gex_3pv3_family` | `v3` | 3M-february-2018.txt | 16 | 12 |
+| `gex_3pv4_gemx` | `v4` | 3M-3pgex-may-2023.txt | 16 | 12 |
+| `gex_5pv3_gemx` | `5pv3` | 3M-5pgex-jan-2023.txt | 16 | 12 |
+| `gex_multiome_arc_v1` | `multiome`, `arc` | gex_737K-arc-v1.txt | 16 | 12 |
+
+```bash
+starsolo 10x /data/fastqs SAMPLE1 --species human --wl gex_3pv3_family
+starsolo 10x /data/fastqs SAMPLE1 --species human --wl v3
+```
+
+Values are case-insensitive. The multiome entry falls back to `737K-arc-v1.txt`
+if the `gex_`-prefixed copy is absent. ATAC chemistry ids are rejected —
+`starsolo 10x` handles gene expression only.
+
+Only the whitelist matching is skipped: reads are still subsampled, and strand
+specificity is still determined by test alignment (it cannot be inferred from
+the whitelist). The run's `strand.txt` reports `NA` for the per-whitelist match
+counts in this mode.
+
+#### Read-length validation (`--skip-length-checks`)
+
+Before alignment the 10x workflow aborts on read lengths that indicate a problem
+with the input: a variable-length R1, an R1 under 24 bp, or an R2 under 40 bp.
+`--skip-length-checks` reports these as warnings instead and continues:
+
+```bash
+starsolo 10x /data/fastqs SAMPLE1 --species human --wl v3 --skip-length-checks
+```
+
+CB/UMI reconciliation still applies — if R1 is too short to hold the full
+barcode+UMI, the UMI length is trimmed to fit and a warning is logged. An R1
+shorter than the cell barcode itself remains a fatal error, since it leaves no
+UMI at all.
 
 #### Paired-end processing
 

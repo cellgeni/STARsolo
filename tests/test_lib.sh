@@ -264,6 +264,31 @@ else
     fail "qc: reports velocyto_failed.txt"
 fi
 
+# Drop-seq/inDrops/Rhapsody runs never set --soloStrand, and a sample can lack
+# summary lines or have zero reads: qc must still finish.
+make_qc_sample qc_nostrand "soloBarcodeMate                   0"
+sed -i '/^soloStrand/d' qc_nostrand/Log.out
+make_qc_sample qc_empty "soloBarcodeMate                   0"
+printf 'Number of Reads,0\n' > qc_empty/output/Gene/Summary.csv
+: > qc_empty/output/GeneFull/Summary.csv
+mkdir -p qc_empty/output/Gene/filtered qc_nostrand/output/Gene/filtered
+echo AAAC | gzip > qc_empty/output/Gene/filtered/barcodes.tsv.gz
+: | gzip > qc_nostrand/output/Gene/filtered/barcodes.tsv.gz
+# Run the CLI: inside an 'if', set -e would not stop run_qc on the first error.
+if QC_OUT=$("$ROOT/bin/starsolo" qc qc_nostrand qc_empty 2> qc2.err); then
+    ok "qc: finishes without soloStrand, summary lines or reads"
+else
+    fail "qc: finishes without soloStrand, summary lines or reads"
+    cat qc2.err
+fi
+check "qc: strand Undef without soloStrand" "Undef" "$(awk -F'\t' '$1 == "qc_nostrand" { print $12 }' <<< "$QC_OUT")"
+check "qc: NA fraction with zero reads" "NA" "$(awk -F'\t' '$1 == "qc_empty" { print $4 }' <<< "$QC_OUT")"
+if "$ROOT/bin/starsolo" qc qc_pe --species >/dev/null 2>&1; then
+    fail "qc: --species without a value is an error"
+else
+    ok "qc: --species without a value is an error"
+fi
+
 # ---------- summary -------------------------------------------------------------
 
 echo

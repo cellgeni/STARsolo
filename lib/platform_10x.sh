@@ -164,11 +164,21 @@ _10x_check_read_lengths() {
     echo "$PAIRED|$CBLEN|$UMILEN"
 }
 
+# Succeeds if the whitelist is used by a 5' chemistry. Every other
+# whitelist (v1, v3, v4-3p, multiome) is 3'-only.
+#   $1: BC (whitelist path)
+_10x_wl_can_be_5p() {
+    case "$(basename "$1")" in
+        737K-august-2016.txt|3M-5pgex-jan-2023.txt) return 0 ;;
+        *)                                          return 1 ;;
+    esac
+}
+
 # Determines strand specificity via test alignments.
-#   $1: REF  $2: CBLEN  $3: UMILEN  $4: CPUS  $5: BC  $6: PAIRED
-# Prints: "STRAND|PCTFWD|PCTREV|PAIRED"
+#   $1: REF  $2: CBLEN  $3: UMILEN  $4: CPUS  $5: BC
+# Prints: "STRAND|PCTFWD|PCTREV"
 _10x_determine_strand() {
-    local REF=$1 CBLEN=$2 UMILEN=$3 CPUS=$4 BC=$5 PAIRED=$6
+    local REF=$1 CBLEN=$2 UMILEN=$3 CPUS=$4 BC=$5
     local STRAND=Forward
 
     log_info "Running test alignment (Forward) …"
@@ -205,24 +215,42 @@ _10x_determine_strand() {
         log_warn "Low GeneFull mapping: forward=${PCTFWD}%, reverse=${PCTREV}%"
     fi
 
-    # 3' paired-end experiments should still be processed as single-end
-    [[ $STRAND == "Forward" && $PAIRED == "True" ]] && PAIRED=False
+    echo "$STRAND|$PCTFWD|$PCTREV"
+}
 
-    echo "$STRAND|$PCTFWD|$PCTREV|$PAIRED"
+# Reconciles the strand test with the whitelist and decides single/paired-end.
+# 3'-only whitelists are Forward by definition, so a Reverse call there (seen
+# on single-nucleus 3' v3 data with a long R1) is overridden. Only 5' data
+# (Reverse) is processed paired-end.
+#   $1: BC  $2: STRAND  $3: PAIRED (R1 long enough)  $4: PCTFWD  $5: PCTREV
+# Prints: "STRAND|PAIRED|NOTE"
+_10x_resolve_layout() {
+    local BC=$1 STRAND=$2 PAIRED=$3 PCTFWD=$4 PCTREV=$5 NOTE=""
+
+    if [[ $STRAND == "Reverse" ]] && ! _10x_wl_can_be_5p "$BC"; then
+        log_warn "Strand test favours Reverse (fwd=${PCTFWD}%, rev=${PCTREV}%), but $(basename "$BC") is a 3'-only whitelist; using Forward, single-end."
+        STRAND=Forward
+        NOTE="forced Forward: 3'-only whitelist"
+    fi
+
+    # 3' experiments are processed as single-end even with a long R1
+    if [[ $STRAND == "Forward" ]]; then PAIRED=False; fi
+
+    echo "$STRAND|$PAIRED|$NOTE"
 }
 
 # Writes a human-readable configuration summary.
 _10x_write_config() {
     local TAG=$1 PAIRED=$2 STRAND=$3 PCTFWD=$4 PCTREV=$5
     local BC=$6 NBC1=$7 NBC2=$8 NBC3=$9 NBCA=${10} NBC4=${11} NBC5=${12}
-    local CBLEN=${13} UMILEN=${14} GZIP=${15} R1=${16} R2=${17}
+    local CBLEN=${13} UMILEN=${14} GZIP=${15} R1=${16} R2=${17} STRAND_NOTE=${18:-}
 
     log_info "STARsolo 10x run configuration:"
     {
         echo "============================================================================="
         echo "Sample: $TAG"
         echo "Paired-end mode: $PAIRED"
-        echo "Strand (Forward=3', Reverse=5'): $STRAND  (%fwd=$PCTFWD, %rev=$PCTREV)"
+        echo "Strand (Forward=3', Reverse=5'): $STRAND  (%fwd=$PCTFWD, %rev=$PCTREV)${STRAND_NOTE:+  [$STRAND_NOTE]}"
         echo "CB whitelist: $BC"
         echo "  Matches /200k: v3=$NBC3 v2=$NBC2 v1=$NBC1 v4-3p=$NBC4 v4-5p=$NBC5 multiome=$NBCA (NA = chemistry given via --wl)"
         echo "CB length: $CBLEN    UMI length: $UMILEN"
@@ -295,23 +323,26 @@ run_10x() {
 
     # 5. Strand specificity
     log_info "Determining strand specificity …"
-    local strand_info STRAND PCTFWD PCTREV
-    strand_info=$(_10x_determine_strand "$REF" "$CBLEN" "$UMILEN" "$CPUS" "$BC" "$PAIRED")
-    IFS='|' read -r STRAND PCTFWD PCTREV PAIRED <<< "$strand_info"
+    local strand_info layout_info STRAND PCTFWD PCTREV STRAND_NOTE
+    strand_info=$(_10x_determine_strand "$REF" "$CBLEN" "$UMILEN" "$CPUS" "$BC")
+    IFS='|' read -r STRAND PCTFWD PCTREV <<< "$strand_info"
+    layout_info=$(_10x_resolve_layout "$BC" "$STRAND" "$PAIRED" "$PCTFWD" "$PCTREV")
+    IFS='|' read -r STRAND PAIRED STRAND_NOTE <<< "$layout_info"
 
     # 6. Log configuration
     _10x_write_config "$TAG" "$PAIRED" "$STRAND" "$PCTFWD" "$PCTREV" \
         "$BC" "$NBC1" "$NBC2" "$NBC3" "$NBCA" "$NBC4" "$NBC5" \
-        "$CBLEN" "$UMILEN" "$GZIP" "$R1" "$R2"
+        "$CBLEN" "$UMILEN" "$GZIP" "$R1" "$R2" "$STRAND_NOTE"
 
     # 7. Run STAR
     local SOLOFILENAMES="output/"
     log_info "Running STARsolo alignment …"
 
     if [[ $PAIRED == "True" ]]; then
+        # 5' R1 carries CB + UMI + 13 bp TSO before the cDNA
         merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
             --readFilesIn "$R1" "$R2" --runDirPerm All_RWX $GZIP $BAM \
-            --soloBarcodeMate 1 --clip5pNbases 39 0 \
+            --soloBarcodeMate 1 --clip5pNbases $((CBLEN + UMILEN + 13)) 0 \
             --soloType CB_UMI_Simple --soloCBwhitelist "$BC" --soloCBstart 1 \
             --soloCBlen "$CBLEN" --soloUMIstart $((CBLEN + 1)) --soloUMIlen "$UMILEN" \
             --soloStrand Forward \

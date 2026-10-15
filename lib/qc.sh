@@ -31,7 +31,7 @@ _qc_guess_wl() {
         3M-5pgex-jan-2023.txt)   echo "v4-5p" ;;
         737K-august-2016.txt)    echo "v2"    ;;
         737K-april-2014_rc.txt)  echo "v1"    ;;
-        737K-arc-v1.txt)         echo "arc"   ;;
+        737K-arc-v1.txt|gex_737K-arc-v1.txt) echo "arc" ;;
         *)                       echo "Undef" ;;
     esac
 }
@@ -132,7 +132,7 @@ run_qc() {
         if [[ -d "$i/output/Gene/filtered/" && -s "$i/Log.out" ]]; then
             # --- Droplet-based ---
             PAIRED="Single"
-            if grep -q "clip5pNbases 39 0" "$i/Log.out"; then
+            if grep -qE '^soloBarcodeMate[[:space:]]+1([[:space:]]|$)' "$i/Log.out"; then
                 PAIRED="Paired"
             fi
 

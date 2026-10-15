@@ -186,9 +186,16 @@ policy() {   # policy NOVELO PAIRED BC → "<features>|<status>"
 check "policy: default keeps Velocyto" "Gene GeneFull Velocyto|on" "$(policy False False /wl/3M-february-2018.txt)"
 check "policy: --no-velocyto drops it" "Gene GeneFull|off (--no-velocyto)" "$(policy True False /wl/3M-february-2018.txt)"
 check "policy: paired-end 737K keeps it" "Gene GeneFull Velocyto|on" "$(policy False True /wl/737K-august-2016.txt)"
-check "policy: paired-end 3M-5pgex drops it" \
-    "Gene GeneFull|off (paired-end GEM-X 5': Velocyto crashes STAR 2.7.10a)" \
-    "$(policy False True /wl/3M-5pgex-jan-2023.txt)"
+mkdir -p "$WORK/stockstar" "$WORK/fixstar"
+printf '#!/bin/bash\necho 2.7.10a_alpha_220818\n' > "$WORK/stockstar/STAR"
+printf '#!/bin/bash\necho 2.7.10a_alpha_220818_velofix\n' > "$WORK/fixstar/STAR"
+chmod +x "$WORK/stockstar/STAR" "$WORK/fixstar/STAR"
+check "policy: paired-end 3M-5pgex drops it with stock STAR" \
+    "Gene GeneFull|off (paired-end GEM-X 5': stock STAR crashes in Velocyto; fixed in 2.7.10a_alpha_220818_velofix)" \
+    "$(PATH="$WORK/stockstar:$PATH" policy False True /wl/3M-5pgex-jan-2023.txt)"
+check "policy: paired-end 3M-5pgex keeps it with the velofix STAR" \
+    "Gene GeneFull Velocyto|on" \
+    "$(PATH="$WORK/fixstar:$PATH" policy False True /wl/3M-5pgex-jan-2023.txt)"
 merge_star_args --soloFeatures Gene GeneFull
 _10x_velocyto_policy False False /wl/3M-february-2018.txt
 check "policy: Velocyto not requested" "off (not in --soloFeatures)" "$VELO_STATUS"
@@ -226,6 +233,16 @@ else
 fi
 rm -f velocyto_failed.txt
 mkdir -p output/Velocyto/raw
+printf '                          Number of input reads |\t5696594413\n' > Log.final.out
+cp Log.out Log.out.stock
+echo "x ... nReadsInput >= 2^32: Solo read index will be stored in 64 bits" >> Log.out
+_10x_check_read_index_limit output/ 2>/dev/null
+if [[ -d output/Velocyto && ! -e velocyto_failed.txt ]]; then
+    ok "read_index_limit: Velocyto kept when STAR stored a 64-bit read index"
+else
+    fail "read_index_limit: Velocyto kept when STAR stored a 64-bit read index"
+fi
+mv Log.out.stock Log.out
 printf '                          Number of input reads |\t4294967295\n' > Log.final.out
 _10x_check_read_index_limit output/
 if [[ -d output/Velocyto && ! -e velocyto_failed.txt ]]; then

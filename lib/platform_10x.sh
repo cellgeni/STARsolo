@@ -240,13 +240,21 @@ _10x_resolve_layout() {
 }
 
 # ---------- Velocyto handling -----------------------------------------------
-# STAR 2.7.10a breaks in Velocyto in two known cases (#27, alexdobin/STAR#2710):
-#  - paired-end runs with a 3M whitelist segfault while mapping;
+# Stock STAR (2.7.10a-2.7.11b) breaks in Velocyto in two known cases (#27):
+#  - paired-end reads with a mate outside the transcript make
+#    alignToTranscriptMinOverlap read out of bounds; with the 3M GEM-X 5'
+#    whitelist this segfaults while mapping;
 #  - above 2^32 input reads the read index STAR keeps for Velocyto wraps, so
 #    Velocyto segfaults after the other features are written, or finishes
-#    with wrong counts.
-# The helpers below avoid the first case, keep the finished matrices when
+#    with wrong counts (alexdobin/STAR#2710).
+# The cellgeni build 2.7.10a_alpha_220818_velofix fixes both. With stock STAR
+# the helpers below avoid the first case, keep the finished matrices when
 # Velocyto crashes, and discard Velocyto output from runs above 2^32 reads.
+
+# Succeeds if STAR is the build with the paired-end Velocyto fix.
+_10x_star_has_pe_velocyto_fix() {
+    [[ $(STAR --version 2>/dev/null) == *velofix* ]]
+}
 
 # Decides whether Velocyto stays in STAR_ARGS. Edits STAR_ARGS and sets the
 # global VELO_STATUS, so never call it inside $(...).
@@ -260,10 +268,11 @@ _10x_velocyto_policy() {
         star_args_drop_feature Velocyto
         VELO_STATUS="off (--no-velocyto)"
         log_info "Velocyto disabled (--no-velocyto)."
-    elif [[ $PAIRED == "True" && $(basename "$BC") == "3M-5pgex-jan-2023.txt" ]]; then
+    elif [[ $PAIRED == "True" && $(basename "$BC") == "3M-5pgex-jan-2023.txt" ]] \
+            && ! _10x_star_has_pe_velocyto_fix; then
         star_args_drop_feature Velocyto
-        VELO_STATUS="off (paired-end GEM-X 5': Velocyto crashes STAR 2.7.10a)"
-        log_warn "Velocyto disabled: STAR 2.7.10a crashes on paired-end data with the 3M-5pgex whitelist."
+        VELO_STATUS="off (paired-end GEM-X 5': stock STAR crashes in Velocyto; fixed in 2.7.10a_alpha_220818_velofix)"
+        log_warn "Velocyto disabled: this STAR ($(STAR --version 2>/dev/null)) crashes on paired-end data with the 3M-5pgex whitelist."
     else
         VELO_STATUS="on"
     fi
@@ -395,14 +404,20 @@ _10x_align() {
     exit "$rc"
 }
 
-# Above 2^32 input reads STAR's Solo read index wraps (alexdobin/STAR#2710):
-# Velocyto counts are wrong even when STAR finishes, so the output is
-# removed; BAM CB/UB tags come from the same index and are flagged.
+# Above 2^32 input reads stock STAR's Solo read index wraps
+# (alexdobin/STAR#2710): Velocyto counts are wrong even when STAR finishes,
+# so the output is removed; BAM CB/UB tags come from the same index and are
+# flagged. STAR builds with the fix (alexdobin/STAR#2711, and the image's
+# patched 2.7.10a) store the index in 64 bits and say so in Log.out.
 #   $1: SOLO_OUT
 _10x_check_read_index_limit() {
     local OUT=${1%/} N MSG
     N=$(_10x_n_reads_input)
     if ! [[ $N =~ ^[0-9]+$ ]] || (( N < 4294967296 )); then return 0; fi
+    if grep -qF "Solo read index will be stored in 64 bits" Log.out 2>/dev/null; then
+        log_info "$N input reads >= 2^32: STAR stored the Solo read index in 64 bits; Velocyto output kept."
+        return 0
+    fi
 
     if [[ -d $OUT/Velocyto ]]; then
         rm -rf -- "$OUT/Velocyto"
@@ -599,12 +614,12 @@ Options:
                              are reported as warnings and the run continues.
                              A UMI-less R1 remains a fatal error.
       --no-velocyto         Do not count Velocyto (spliced/unspliced) matrices.
-                             Velocyto is also dropped automatically for
-                             paired-end GEM-X 5' data (STAR 2.7.10a crashes);
-                             if it crashes anyway, Gene/GeneFull are kept and
-                             velocyto_failed.txt is written. Velocyto output
-                             from runs with >= 2^32 reads is removed (its
-                             counts are wrong there).
+                             With stock STAR (not the image's ..._velofix
+                             build) Velocyto is also dropped for paired-end
+                             GEM-X 5' data, and removed from runs with
+                             >= 2^32 reads. If STAR crashes in Velocyto anyway,
+                             Gene/GeneFull are kept and velocyto_failed.txt is
+                             written.
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)

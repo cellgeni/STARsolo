@@ -36,6 +36,19 @@ _qc_guess_wl() {
     esac
 }
 
+# Describes why Velocyto output is missing, from a velocyto_failed.txt marker.
+_qc_velocyto_reason() {
+    local marker="$1" stage rc
+    stage=$(sed -n 's/^stage=//p' "$marker")
+    rc=$(sed -n 's/^star_exit_code=//p' "$marker")
+    case "$stage" in
+        solo_postmap)     echo "STAR crashed in Velocyto counting (exit $rc)" ;;
+        mapping)          echo "STAR crashed while mapping with Velocyto (exit $rc); rerun without Velocyto" ;;
+        read_index_limit) echo "removed, >= 2^32 input reads make Velocyto counts wrong" ;;
+        *)                echo "see $marker" ;;
+    esac
+}
+
 # ---------- Main QC workflow -------------------------------------------------
 
 run_qc() {
@@ -73,11 +86,19 @@ run_qc() {
     # --- Check completion status ---
     log_info "Checking that all STARsolo jobs went to completion …"
     local i
+    local MARK
     for i in "${CLEAN_DIRS[@]}"; do
-        if [[ -d "$i/output" && -s "$i/Log.final.out" ]]; then
-            if [[ -d "$i/_STARtmp" ]]; then
-                log_warn "Sample $i did not run to completion: _STARtmp is still present!"
+        [[ -d "$i/output" ]] || continue
+        MARK="$i/velocyto_failed.txt"
+        if [[ -d "$i/_STARtmp" ]]; then
+            log_warn "Sample $i did not run to completion: _STARtmp is still present!"
+        elif [[ -s "$MARK" ]]; then
+            log_warn "Sample $i has no Velocyto output: $(_qc_velocyto_reason "$MARK"). Other features were kept."
+            if grep -q "^bam=missing" "$MARK"; then
+                log_warn "Sample $i: the requested BAM was not written."
             fi
+        elif [[ -s "$i/Log.out" && ! -s "$i/Log.final.out" ]]; then
+            log_warn "Sample $i did not run to completion: Log.final.out is missing!"
         fi
     done
 
@@ -227,6 +248,10 @@ Aggregate QC statistics across one or more STARsolo output directories.
 
 Arguments:
   <dir>                     One or more STARsolo output directories.
+
+Checks: unfinished runs (_STARtmp left or no Log.final.out), Velocyto output
+dropped by 'starsolo 10x' (velocyto_failed.txt), cross-sample barcode overlap
+and low GeneFull mapping.
 
 Options:
   -s, --species <name>      Override species label in output (e.g. human, mouse).

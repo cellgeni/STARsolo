@@ -71,6 +71,7 @@ Global options (available for all platforms):
                              (e.g. gex_3pv3_family, gex_3pv4_gemx, v3, v4)
       --skip-length-checks  10x only: warn instead of aborting on unexpected
                              R1/R2 read lengths
+      --no-velocyto         10x only: do not count Velocyto matrices
   -c, --cpus <N>            Number of threads  [default: ${STARSOLO_CPUS}]
   --bam                     Output sorted BAM
   --no-bam                  No BAM output (default)
@@ -88,6 +89,7 @@ Configuration:
 Examples:
   starsolo 10x /data/fastqs SAMPLE1 --species human
   starsolo 10x /data/fastqs SAMPLE1 --ref /path/to/index --bam
+  starsolo 10x /data/fastqs SAMPLE1 --species human --no-velocyto
   starsolo smartseq manifest.tsv --species mouse
   starsolo dropseq /data/fastqs SAMPLE1 --species human
   starsolo rhapsody /data/fastqs SAMPLE1 --species human
@@ -115,6 +117,7 @@ parse_droplet_args() {
     WL="$STARSOLO_WL_DIR"
     CHEM=""                             # 10x: skip chemistry detection
     SKIPLEN="False"                     # 10x: skip read-length validation
+    NOVELO="False"                      # 10x: drop Velocyto from --soloFeatures
     BAM_MODE="$STARSOLO_BAM_MODE"
     REF=""
     SPECIES=""
@@ -181,6 +184,9 @@ parse_droplet_args() {
             --skip-length-checks)
                 SKIPLEN="True"
                 j=$((j + 1)) ;;
+            --no-velocyto)
+                NOVELO="True"
+                j=$((j + 1)) ;;
             -c|--cpus)
                 CPUS="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
@@ -214,6 +220,12 @@ parse_droplet_args() {
     fi
     if [[ $SKIPLEN == "True" && $PLATFORM != "10x" ]]; then
         die "--skip-length-checks is only supported for the 10x platform."
+    fi
+    if [[ $NOVELO == "True" && $PLATFORM != "10x" ]]; then
+        die "--no-velocyto is only supported for the 10x platform (no other platform counts Velocyto)."
+    fi
+    if [[ $NOVELO == "True" ]] && has_solo_feature Velocyto ${STAR_EXTRA_ARGS[@]+"${STAR_EXTRA_ARGS[@]}"}; then
+        die "--no-velocyto conflicts with Velocyto in the --soloFeatures passed after '--'."
     fi
 
     # STAR flags starsolo owns: each has a starsolo option, or moving it would
@@ -260,7 +272,7 @@ main() {
                 show_10x_help; exit 0
             fi
             parse_droplet_args "10x" "$@"
-            run_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$CHEM" "$SKIPLEN"
+            run_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$CHEM" "$SKIPLEN" "$NOVELO"
             ;;
         smartseq|smart-seq|ss2)
             if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then

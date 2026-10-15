@@ -22,10 +22,10 @@ The following tools **must be available in `$PATH`** before running `starsolo` (
 
 | Tool | Tested version | Purpose |
 |:--|:--|:--|
-| [STAR](https://github.com/alexdobin/STAR) | 2.7.10a | Alignment & quantification |
-| [samtools](https://github.com/samtools/samtools) | 1.15.1 | BAM indexing |
-| [seqtk](https://github.com/lh3/seqtk) | 1.3+ | Read subsampling (10x chemistry detection) |
-| [pbzip2](https://launchpad.net/pbzip2) | 1.1+ | Compressing unmapped reads |
+| [STAR](https://github.com/alexdobin/STAR) | 2.7.10a_alpha_220818 (image: `_velofix` build, see [Velocyto](#velocyto)) | Alignment & quantification |
+| [samtools](https://github.com/samtools/samtools) | 1.21 | BAM indexing |
+| [seqtk](https://github.com/lh3/seqtk) | 1.4 | Read subsampling (10x chemistry detection) |
+| [pbzip2](https://launchpad.net/pbzip2) | 1.1.13 | Compressing unmapped reads |
 | [BBMap](https://sourceforge.net/projects/bbmap/) | 38.97 | Adapter trimming (optional, via `bbduk.sh`) |
 
 > **Tip:** The included [Dockerfile](Dockerfile) builds all of the above into a single container image.
@@ -139,8 +139,7 @@ The script subsamples 200,000 reads and matches barcodes against all known white
 | 3' v3/v3.1 | 3M-february-2018.txt | 16 | 12 | Forward |
 | 3' v4 | 3M-3pgex-may-2023.txt | 16 | 12 | Forward |
 | 5' v1.1/v2 | 737K-august-2016.txt | 16 | 10 | Reverse |
-| 5' v3 | 737K-august-2016.txt | 16 | 12 | Reverse |
-| 5' v4 | 3M-5pgex-jan-2023.txt | 16 | 12 | Reverse |
+| 5' v3 (GEM-X) | 3M-5pgex-jan-2023.txt | 16 | 12 | Reverse |
 | multiome | 737K-arc-v1.txt | 16 | 12 | Forward |
 
 #### Skipping chemistry detection (`--wl`)
@@ -201,24 +200,42 @@ notes the override.
 
 #### Velocyto
 
-`starsolo 10x` counts `Gene GeneFull Velocyto` by default. STAR 2.7.10a breaks in
-Velocyto in two known cases ([#27](https://github.com/cellgeni/STARsolo/issues/27),
-[alexdobin/STAR#2710](https://github.com/alexdobin/STAR/issues/2710)), and the
-wrapper handles them so that they cost the Velocyto output, not the sample:
+`starsolo 10x` counts `Gene GeneFull Velocyto` by default. Stock STAR
+(2.7.10a to 2.7.11b) breaks in Velocyto in two cases
+([#27](https://github.com/cellgeni/STARsolo/issues/27)):
+
+1. **Paired-end reads** whose mate lies outside the transcript make
+   Velocyto's transcript check read out of bounds. With the 3M GEM-X 5'
+   whitelist this segfaults while mapping; with 737K it reads garbage for a
+   handful of reads.
+2. **2³² (about 4.3 × 10⁹) or more input reads**: the read index STAR keeps
+   for Velocyto wraps, so STAR segfaults in Velocyto counting after Gene and
+   GeneFull are written, or finishes with wrong Velocyto counts and BAM
+   `CB`/`UB` tags ([alexdobin/STAR#2710](https://github.com/alexdobin/STAR/issues/2710)).
+
+The Docker image therefore uses **STAR `2.7.10a_alpha_220818_velofix`**: the
+same 2.7.10a_alpha_220818 with only these two fixes (the second is a backport
+of [alexdobin/STAR#2711](https://github.com/alexdobin/STAR/pull/2711)). On
+single-end 10x 3' data its output is byte-identical to stock 2.7.10a
+(matrices, `Log.final.out`, BAM), so new batches stay comparable with earlier
+ones; paired-end Velocyto changes only for the reads that were read from
+garbage. The Dockerfile's `STAR_REPO`/`STAR_REF` select the source.
+
+The wrapper also copes with stock STAR, so that a Velocyto failure costs the
+Velocyto output, not the sample:
 
 - `--no-velocyto` drops Velocyto from the feature list.
-- Paired-end GEM-X 5' runs (`3M-5pgex-jan-2023.txt`) drop Velocyto
-  automatically, since STAR segfaults on them while mapping.
+- With a STAR that is not a `velofix` build, paired-end GEM-X 5' runs
+  (`3M-5pgex-jan-2023.txt`) drop Velocyto automatically.
 - If STAR crashes in Velocyto counting after the other features are written,
   those features are kept and compressed, the partial `output/Velocyto` is
   removed, and the run exits 0. If a BAM was requested, it is missing (STAR
   sorts it after Solo counting), so the run exits with STAR's code instead.
 - If STAR crashes while mapping with Velocyto on, the run is repeated once
   without Velocyto. The first attempt's log is kept as `Log.attempt1.out`.
-- With 2³² (about 4.3 × 10⁹) or more input reads, STAR's read index wraps and
-  Velocyto counts are wrong even when STAR finishes, so `output/Velocyto` is
-  removed after the run. BAM `CB`/`UB` tags come from the same index, and a
-  warning is logged if a BAM was written.
+- With 2³² or more input reads, `output/Velocyto` is removed after the run
+  and a warning about BAM `CB`/`UB` tags is logged, unless `Log.out` shows
+  that STAR stored the read index in 64 bits (the `velofix` build does).
 
 Each of these is recorded in `strand.txt` (`Velocyto:` line), and whenever
 Velocyto output is missing for a reason other than `--no-velocyto`, a
@@ -324,7 +341,7 @@ Outputs a tab-separated table to stdout (pipe through `column -t` for aligned di
 | `Cells` | Estimated number of cells |
 | `Med_nFeature` | Median genes per cell |
 | `Good_BC` | Fraction of reads with valid barcodes |
-| `WL` | Detected whitelist (`v1`, `v2`, `v3`, `v4-3p`, `v4-5p`, `arc`) |
+| `WL` | Detected whitelist (`v1`, `v2`, `v3`, `v4-3p` = GEM-X 3' v4, `v4-5p` = GEM-X 5' v3, `arc`) |
 | `Species` | Species label |
 | `Paired` | `Single` or `Paired` |
 | `Strand` | Strand specificity |
@@ -364,6 +381,17 @@ This submits with 16 CPUs / 64 GB RAM to the `normal` queue.
 
 Default: **16 CPUs, 64–128 GB RAM**. Some datasets require 128 GB; if jobs fail with OOM errors, increase RAM in your job submission.
 
+## Testing
+
+```bash
+bash tests/test_lib.sh                  # library functions; needs only bash and pbzip2
+bash tests/test_recovery.sh             # 10x crash recovery; needs STAR (run in the image)
+bash tests/test_platforms.sh [case …]   # every platform on data/test.tar.gz; needs STAR
+```
+
+`data/test.tar.gz` is generated, not edited: change `scripts/generate_test_data.py`
+and run `scripts/build_test_data.sh` inside the image.
+
 ## Docker
 
 The included [Dockerfile](Dockerfile) builds all required tools:
@@ -371,6 +399,14 @@ The included [Dockerfile](Dockerfile) builds all required tools:
 ```bash
 docker build -t starsolo .
 docker run -v /data:/data starsolo starsolo 10x /data/fastqs SAMPLE1 --species human
+```
+
+STAR is compiled in a separate build stage from the GitHub source selected by
+`STAR_REPO` and `STAR_REF` (a tag, branch or commit), and only the binary is
+copied into the image; `/versions.txt` records which source was used:
+
+```bash
+docker build --build-arg STAR_REPO=alexdobin/STAR --build-arg STAR_REF=2.7.10a_alpha_220818 -t starsolo .
 ```
 
 ## Project structure
@@ -391,14 +427,21 @@ STARsolo/
 ├── etc/
 │   └── defaults.conf          # Default configuration
 ├── tests/
-│   ├── test_lib.sh            # Unit tests of the library functions
-│   └── test_recovery.sh       # 10x Velocyto/crash-recovery tests (stub STAR)
+│   ├── test_lib.sh            # Unit tests of the library functions (no STAR needed)
+│   ├── test_recovery.sh       # 10x Velocyto/crash-recovery tests (stub STAR)
+│   └── test_platforms.sh      # Every platform on the test data, checked against data/test/truth
 ├── scripts/
-│   ├── solo_qc.sh             # QC aggregation
 │   ├── bbduk_trim.sh          # Adapter trimming helper
-│   └── bsub_submit.sh         # LSF job submission helper
+│   ├── bsub_submit.sh         # LSF job submission helper
+│   ├── generate_test_data.py  # Synthetic test reads, reference and whitelists
+│   ├── build_test_data.sh     # Rebuilds data/test.tar.gz (generator + STAR index)
+│   └── legacy/                # The original per-platform scripts
+├── data/
+│   ├── test.tar.gz            # Synthetic test dataset (see data/test/README.md inside)
+│   └── whitelists.tar.gz      # Barcode whitelists (unpacked into the Docker image)
 ├── Dockerfile
 ├── install.sh
+├── AGENTS.md                  # Notes for contributors and coding agents
 ├── LICENSE
 └── README.md
 ```

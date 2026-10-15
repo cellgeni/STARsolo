@@ -63,11 +63,6 @@ case "$STUB_MODE" in
         sed -i 's/\(Number of input reads |\s*\)[0-9]*/\15696594413/' Log.final.out ;;
     segv_velocyto)  # write everything, then die in Velocyto counting
         "$REAL_STAR" "$@" || exit $?
-        # The synthetic 10x reads give no cells, so STAR writes no filtered/
-        # matrices; a real sample would have them.
-        for f in Gene GeneFull; do
-            [[ -d output/$f/filtered ]] || cp -r "output/$f/raw" "output/$f/filtered"
-        done
         if [[ $VELO == True ]]; then
             sed -i '/Starting Solo post-map for Velocyto/q' Log.out
             echo "... Velocyto counting: allocated arrays" >> Log.out
@@ -119,17 +114,17 @@ marker() { grep -qx -- "$1" "$D/velocyto_failed.txt" 2>/dev/null; }
 
 # ---------- scenarios ------------------------------------------------------------
 
-run normal ok -- --winAnchorMultimapNmax 50
+run normal ok
 expect "normal: exit 0, Velocyto counted" [ "$RC" = 0 -a -s "$D/output/Velocyto/raw/spliced.mtx.gz" ]
 expect "normal: no marker, no _STARtmp" [ ! -e "$D/velocyto_failed.txt" -a ! -e "$D/_STARtmp" ]
 expect "normal: strand.txt lists features" has "Solo features: Gene GeneFull Velocyto" "$D/strand.txt"
 
-run override ok -- --winAnchorMultimapNmax 50 --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
+run override ok -- --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
 expect "override: exit 0, GeneFull_Ex50pAS written" [ "$RC" = 0 -a -d "$D/output/GeneFull_Ex50pAS" ]
 expect "override: a single --soloFeatures reaches STAR" \
     [ "$(grep -o -- "--soloFeatures" "$WORK/override/stub.log" | wc -l)" = 1 ]
 
-run novelo ok --no-velocyto -- --winAnchorMultimapNmax 50
+run novelo ok --no-velocyto
 expect "--no-velocyto: exit 0, no Velocyto" [ "$RC" = 0 -a ! -e "$D/output/Velocyto" ]
 expect "--no-velocyto: STAR not asked for Velocyto" [ "$(grep -c Velocyto "$WORK/novelo/stub.log")" = 0 ]
 expect "--no-velocyto: reason in strand.txt" has "Velocyto: off (--no-velocyto)" "$D/strand.txt"
@@ -137,7 +132,7 @@ expect "--no-velocyto: reason in strand.txt" has "Velocyto: off (--no-velocyto)"
 run conflict ok --no-velocyto -- --soloFeatures Gene Velocyto
 expect "--no-velocyto + passthrough Velocyto: exit 1 before any work" [ "$RC" = 1 -a ! -e "$D" ]
 
-run segv_velocyto segv_velocyto -- --winAnchorMultimapNmax 50
+run segv_velocyto segv_velocyto
 expect "segv_velocyto: exit 0" [ "$RC" = 0 ]
 expect "segv_velocyto: Gene kept, Velocyto removed" [ -s "$D/output/Gene/raw/matrix.mtx.gz" -a ! -e "$D/output/Velocyto" ]
 expect "segv_velocyto: marker" marker "star_exit_code=139"
@@ -147,32 +142,32 @@ expect "segv_velocyto: strand.txt says FAILED" has "Velocyto: FAILED" "$D/strand
 ( cd "$WORK/segv_velocyto" && "$ROOT/bin/starsolo" qc 10x > qc.tsv 2> qc.err ) || true
 expect "segv_velocyto: starsolo qc reports it" has "10x has no Velocyto output" "$WORK/segv_velocyto/qc.err"
 
-run segv_velocyto_bam segv_velocyto --bam -- --winAnchorMultimapNmax 50 --limitBAMsortRAM 2000000000
+run segv_velocyto_bam segv_velocyto --bam -- --limitBAMsortRAM 2000000000
 expect "segv_velocyto --bam: exit 139 (BAM missing)" [ "$RC" = 139 ]
 expect "segv_velocyto --bam: matrices kept and compressed" [ -s "$D/output/GeneFull/filtered/matrix.mtx.gz" ]
 expect "segv_velocyto --bam: marker bam=missing" marker "bam=missing"
 
-run segv_mapping segv_mapping -- --winAnchorMultimapNmax 50
+run segv_mapping segv_mapping
 expect "segv_mapping: exit 0 after one rerun" [ "$RC" = 0 -a "$CALLS" = 2 ]
 expect "segv_mapping: rerun without Velocyto" [ "$(sed -n 2p "$WORK/segv_mapping/stub.log" | grep -c Velocyto)" = 0 ]
 expect "segv_mapping: first log kept, marker" [ -s "$D/Log.attempt1.out" ]
 expect "segv_mapping: marker stage" marker "stage=mapping"
 expect "segv_mapping: Gene written" [ -s "$D/output/Gene/raw/matrix.mtx.gz" ]
 
-run segv_always segv_always -- --winAnchorMultimapNmax 50
+run segv_always segv_always
 expect "segv_always: exit 139 after one rerun" [ "$RC" = 139 -a "$CALLS" = 2 ]
 expect "segv_always: _STARtmp removed" [ ! -e "$D/_STARtmp" ]
 
-run segv_always_novelo segv_always --no-velocyto -- --winAnchorMultimapNmax 50
+run segv_always_novelo segv_always --no-velocyto
 expect "segv_always --no-velocyto: exit 139, no rerun" [ "$RC" = 139 -a "$CALLS" = 1 ]
 
-run segv_gene segv_gene -- --winAnchorMultimapNmax 50
+run segv_gene segv_gene
 expect "segv_gene: exit 139, no rerun, no marker" [ "$RC" = 139 -a "$CALLS" = 1 -a ! -e "$D/velocyto_failed.txt" ]
 
-run fatal_param fatal_param -- --winAnchorMultimapNmax 50
+run fatal_param fatal_param
 expect "fatal_param: exit 102, no rerun" [ "$RC" = 102 -a "$CALLS" = 1 ]
 
-run huge huge -- --winAnchorMultimapNmax 50
+run huge huge
 expect "huge: exit 0, Velocyto removed" [ "$RC" = 0 -a ! -e "$D/output/Velocyto" -a -s "$D/output/Gene/raw/matrix.mtx.gz" ]
 expect "huge: marker stage" marker "stage=read_index_limit"
 

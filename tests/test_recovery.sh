@@ -62,7 +62,12 @@ case "$STUB_MODE" in
         "$REAL_STAR" "$@" || exit $?
         sed -i 's/\(Number of input reads |\s*\)[0-9]*/\15696594413/' Log.final.out ;;
     segv_velocyto)  # write everything, then die in Velocyto counting
-        "$REAL_STAR" "$@" || exit $?
+        # A real crash leaves the shared genome loaded: keep it, as STAR would
+        args=("$@")
+        for i in "${!args[@]}"; do
+            if [[ ${args[i]} == LoadAndRemove ]]; then args[i]=LoadAndKeep; fi
+        done
+        "$REAL_STAR" "${args[@]}" || exit $?
         if [[ $VELO == True ]]; then
             sed -i '/Starting Solo post-map for Velocyto/q' Log.out
             echo "... Velocyto counting: allocated arrays" >> Log.out
@@ -86,7 +91,11 @@ esac
 EOF
 chmod +x "$WORK/bin/STAR"
 
-shm_count() { ipcs -m 2>/dev/null | awk -v u="$(id -un)" '$3 == u' | wc -l; }
+# SysV segments owned by this user (ipcs cuts user names to 10 characters)
+shm_count() {
+    if [[ ! -r /proc/sysvipc/shm ]]; then echo 0; return 0; fi
+    awk -v u="$(id -u)" 'NR > 1 && $8 == u { n++ } END { print n + 0 }' /proc/sysvipc/shm
+}
 SHM0=$(shm_count)
 
 # run NAME MODE [starsolo 10x options…] → runs in $WORK/NAME; sets RC, D, CALLS

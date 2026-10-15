@@ -150,35 +150,41 @@ parse_droplet_args() {
     fi
 
     # For smartseq we only need 1 positional; others need 2
-    if [[ $PLATFORM == "smartseq" ]]; then
-        if (( ${#POSITIONALS[@]} < 1 )); then
-            "show_${PLATFORM}_help"
-            exit 1
-        fi
-        FQDIR="${POSITIONALS[0]}"  # actually TSV for smartseq
-    else
-        if (( ${#POSITIONALS[@]} < 2 )); then
-            "show_${PLATFORM}_help"
-            exit 1
-        fi
-        FQDIR="${POSITIONALS[0]}"
-        TAG="${POSITIONALS[1]}"
+    local NPOS=2
+    if [[ $PLATFORM == "smartseq" ]]; then NPOS=1; fi
+    if (( ${#POSITIONALS[@]} < NPOS )); then
+        "show_${PLATFORM}_help"
+        exit 1
     fi
+    if (( ${#POSITIONALS[@]} > NPOS )); then
+        die "Unexpected argument '${POSITIONALS[NPOS]}'. Run 'starsolo $PLATFORM --help'."
+    fi
+    FQDIR="${POSITIONALS[0]}"          # manifest TSV for smartseq
+    if (( NPOS == 2 )); then TAG="${POSITIONALS[1]}"; fi
 
-    # Parse flags
+    # Parse flags. _need_value checks that the option at FLAGS[j] has a value.
     local j=0
+    _need_value() {
+        if [[ -z ${FLAGS[j+1]-} || ${FLAGS[j+1]} == --* ]]; then
+            die "Option ${FLAGS[j]} needs a value. Run 'starsolo $PLATFORM --help'."
+        fi
+    }
     while (( j < ${#FLAGS[@]} )); do
         case "${FLAGS[$j]}" in
             -s|--species)
+                _need_value
                 SPECIES="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -r|--ref)
+                _need_value
                 REF="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -w|--whitelist-dir)
+                _need_value
                 WL="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --wl)
+                _need_value
                 CHEM="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --skip-length-checks)
@@ -188,6 +194,7 @@ parse_droplet_args() {
                 NOVELO="True"
                 j=$((j + 1)) ;;
             -c|--cpus)
+                _need_value
                 CPUS="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --bam)
@@ -197,9 +204,11 @@ parse_droplet_args() {
                 BAM_MODE="nobam"
                 j=$((j + 1)) ;;
             --adapter)
+                _need_value
                 ADAPTER="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --strand)
+                _need_value
                 STRAND="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -h|--help)
@@ -213,6 +222,12 @@ parse_droplet_args() {
                 die "Unknown option: ${FLAGS[$j]}. Run 'starsolo $PLATFORM --help'." ;;
         esac
     done
+
+    [[ $CPUS =~ ^[1-9][0-9]*$ ]] || die "--cpus must be a positive integer, got '$CPUS'."
+    case "$STRAND" in
+        Forward|Reverse|Unstranded) ;;
+        *) die "--strand must be Forward, Reverse or Unstranded, got '$STRAND'." ;;
+    esac
 
     # --wl only makes sense where chemistry is auto-detected
     if [[ -n "$CHEM" && $PLATFORM != "10x" ]]; then

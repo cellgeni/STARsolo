@@ -23,8 +23,6 @@ run_strt() {
     local CBLEN=8
     local UMILEN=8
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -34,6 +32,9 @@ run_strt() {
     local comp_info GZIP ZCMD
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
+
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
 
     log_info "Running STARsolo (STRT-seq) for '$TAG' (strand=$STRAND) …"
 

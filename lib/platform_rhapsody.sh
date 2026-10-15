@@ -26,8 +26,6 @@ run_rhapsody() {
     BC2=$(readlink -f "$BC2")
     BC3=$(readlink -f "$BC3")
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -37,6 +35,9 @@ run_rhapsody() {
     local comp_info GZIP ZCMD
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
+
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
 
     log_info "Running STARsolo (BD Rhapsody) for '$TAG' …"
 

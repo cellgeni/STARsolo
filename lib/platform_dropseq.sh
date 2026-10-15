@@ -15,8 +15,6 @@ run_dropseq() {
     # Convert to absolute path before cd
     REF=$(readlink -f "$REF")
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -26,6 +24,9 @@ run_dropseq() {
     local comp_info GZIP ZCMD
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
+
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
 
     log_info "Running STARsolo (Drop-seq) for '$TAG' …"
 

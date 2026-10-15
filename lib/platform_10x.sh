@@ -460,9 +460,6 @@ run_10x() {
     REF=$(readlink -f "$REF")
     WL=$(readlink -f "$WL")
 
-    # Create output directory and enter it
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # 1. Discover FASTQs
     log_info "Discovering FASTQ files for sample '$TAG' …"
     local fq_info R1 R2
@@ -473,6 +470,9 @@ run_10x() {
     local comp_info GZIP ZCMD
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
+
+    # Create output directory (only once the FASTQs are found) and enter it
+    mkdir -p "$TAG" && cd "$TAG" || exit
 
     # 3. Chemistry: subsample reads, then either use the given chemistry or detect it
     log_info "Subsampling reads …"

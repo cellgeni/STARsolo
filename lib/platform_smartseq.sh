@@ -49,7 +49,7 @@ run_smartseq() {
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
     run_star
 
-    rm -f "$NEW_MANIFEST"
+    # <sample>/manifest.tsv is kept: it records which FASTQs make up each cell.
     process_output_files "output" "$CPUS"
 }
 

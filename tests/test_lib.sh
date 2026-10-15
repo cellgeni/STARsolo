@@ -289,6 +289,29 @@ else
     ok "qc: --species without a value is an error"
 fi
 
+# ---------- command line ------------------------------------------------------
+
+mkdir -p "$WORK/cli/fq" && cd "$WORK/cli"
+cli_error() {   # cli_error NAME EXPECTED_MESSAGE ARGS… → exit 1 with that message
+    local name=$1 msg=$2 out rc=0
+    shift 2
+    out=$("$ROOT/bin/starsolo" "$@" 2>&1) || rc=$?
+    if (( rc == 1 )) && grep -qF -- "$msg" <<< "$out"; then
+        ok "cli: $name"
+    else
+        fail "cli: $name"
+        echo "       exit $rc: $out"
+    fi
+}
+cli_error "option without a value" "Option --ref needs a value" dropseq fq S1 --ref
+cli_error "option followed by an option" "Option -s needs a value" dropseq fq S1 -s --bam
+cli_error "extra positional" "Unexpected argument 'S2'" dropseq fq S1 S2 --ref /r
+cli_error "non-numeric --cpus" "--cpus must be a positive integer" dropseq fq S1 --ref /r --cpus x
+cli_error "bad --strand" "--strand must be Forward, Reverse or Unstranded" strt fq S1 --ref /r --strand forward
+cli_error "missing FASTQs" "No appropriate FASTQ files found" dropseq fq NOSUCH --ref /r
+if [[ ! -e NOSUCH ]]; then ok "cli: no sample dir left when FASTQs are missing"; else fail "cli: no sample dir left when FASTQs are missing"; fi
+cd "$WORK"
+
 # ---------- summary -------------------------------------------------------------
 
 echo

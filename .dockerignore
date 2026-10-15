@@ -1,0 +1,13 @@
+# Allow-list: only what the image needs. Everything else (.git, data/test,
+# run directories, local tarballs) stays out of the build context.
+*
+!bin
+!lib
+!etc
+!scripts
+!tests
+!data/whitelists.tar.gz
+!install.sh
+!README.md
+!LICENSE
+!Dockerfile

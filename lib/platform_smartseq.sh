@@ -41,16 +41,16 @@ run_smartseq() {
 
     log_info "Running STARsolo (Smart-seq) for '$TAG' …"
 
-    STAR --runThreadN "$CPUS" --genomeDir "$REF" --runDirPerm All_RWX $GZIP $BAM \
+    merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" --runDirPerm All_RWX $GZIP $BAM \
         --soloType SmartSeq --readFilesManifest "$TSV" \
         --soloUMIdedup Exact --soloStrand Unstranded \
         --limitOutSJcollapsed 10000000 --soloCellFilter None \
         --soloFeatures Gene GeneFull \
-        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        "${STAR_EXTRA_ARGS[@]}"
+        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+    run_star
 
-    rm -f "$NEW_MANIFEST"
-    process_output_files "output"
+    # <sample>/manifest.tsv is kept: it records which FASTQs make up each cell.
+    process_output_files "output" "$CPUS"
 }
 
 show_smartseq_help() {
@@ -72,7 +72,7 @@ Options:
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

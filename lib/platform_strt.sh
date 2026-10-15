@@ -23,8 +23,6 @@ run_strt() {
     local CBLEN=8
     local UMILEN=8
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -35,10 +33,13 @@ run_strt() {
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
 
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
+
     log_info "Running STARsolo (STRT-seq) for '$TAG' (strand=$STRAND) …"
 
     # NOTE: R2 R1 order — R1 is biological read, R2 carries barcode
-    STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+    merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
         --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
         --soloType CB_UMI_Simple --soloCBwhitelist "$BC" \
         --soloBarcodeReadLength 0 \
@@ -48,10 +49,10 @@ run_strt() {
         --soloUMIfiltering MultiGeneUMI_CR \
         --limitOutSJcollapsed 10000000 --soloCellFilter None \
         --soloFeatures Gene GeneFull \
-        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        "${STAR_EXTRA_ARGS[@]}"
+        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+    run_star
 
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_strt_help() {
@@ -74,7 +75,7 @@ Options:
   --strand <Forward|Reverse> Strand specificity           [default: Forward]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

@@ -1,8 +1,31 @@
+# ---- STAR, built in its own stage so that only the binary reaches the image ----
+# STAR_REPO/STAR_REF select the GitHub source tarball (a tag, branch or commit).
+# STAR_REF is pinned to a commit so that a moved tag cannot change the image.
+# The image stays on STAR 2.7.10a_alpha_220818 so that results match earlier
+# batches; the cellgeni build adds the Velocyto fixes on top of it (AGENTS.md).
+FROM ubuntu:20.04 AS star-build
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG STAR_REPO=cellgeni/STAR
+ARG STAR_REF=e6187c78b77642fa21b1ace14387a38ce254c49b
+
+RUN apt-get update && apt-get -y --no-install-recommends -qq install \
+        build-essential ca-certificates wget zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# -msse4.2 is needed for --clipAdapterType CellRanger4 (STAR#1218)
+RUN wget -q -O star.tar.gz "https://github.com/${STAR_REPO}/archive/${STAR_REF}.tar.gz" && \
+    mkdir -p /star && tar -xzf star.tar.gz -C /star --strip-components=1 && \
+    make -C /star/source STAR CXXFLAGS_SIMD="-msse4.2" -j"$(nproc)" && \
+    /star/source/STAR --version
+
+# ---- Final image ---------------------------------------------------------------
 FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG star_version=2.7.10a_alpha_220818
+ARG STAR_REPO=cellgeni/STAR
+ARG STAR_REF=e6187c78b77642fa21b1ace14387a38ce254c49b
 ARG samtools_version=1.21
 ARG bbmap_version=38.97
 ARG seqtk_version=1.4
@@ -12,12 +35,8 @@ RUN apt-get update && apt-get -y --no-install-recommends -qq install \
     wget gcc build-essential software-properties-common libz-dev \
     git libncurses5-dev libbz2-dev liblzma-dev default-jre bsdmainutils pbzip2
 
-#Install STAR
-RUN wget --no-check-certificate https://github.com/alexdobin/STAR/archive/${star_version}.tar.gz && \
-    tar -xzf ${star_version}.tar.gz -C /opt && \
-    cd /opt/STAR-${star_version}/source && \
-    make STAR CXXFLAGS_SIMD="-msse4.2" && \
-    cd / && rm ${star_version}.tar.gz 
+#Install STAR (built in the star-build stage)
+COPY --from=star-build /star/source/STAR /opt/STAR/bin/STAR
 
 #Install seqtk
 RUN wget --no-check-certificate https://github.com/lh3/seqtk/archive/refs/tags/v${seqtk_version}.tar.gz && \
@@ -45,16 +64,15 @@ RUN wget https://sourceforge.net/projects/bbmap/files/BBMap_${bbmap_version}.tar
 # Install this repository
 COPY . /opt/STARsolo
 RUN cd /opt/STARsolo &&\
-    rm data/test.tar.gz &&\
     tar -xzf data/whitelists.tar.gz &&\
     ./install.sh
 
 # Set PATH to include all binaries
 ENV STARSOLO_WL_DIR=/opt/STARsolo/data/whitelists
-ENV PATH="/opt/STARsolo/bin:${PATH}:/opt/STAR-${star_version}/source:/opt/seqtk-${seqtk_version}:/opt/bbmap"     
+ENV PATH="/opt/STARsolo/bin:${PATH}:/opt/STAR/bin:/opt/seqtk-${seqtk_version}:/opt/bbmap"     
 
 #Saving Software Versions to a file
-RUN echo "STAR version: ${star_version}" >> versions.txt && \
+RUN echo "STAR version: $(STAR --version) (${STAR_REPO}@${STAR_REF})" >> versions.txt && \
     echo "samtools version: ${samtools_version}" >> versions.txt && \
     echo "BBMap version: ${bbmap_version}" >> versions.txt && \
     echo "seqtk version: ${seqtk_version}" >> versions.txt 

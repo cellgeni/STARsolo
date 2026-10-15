@@ -2,7 +2,7 @@
 # =============================================================================
 # starsolo — unified CLI for STARsolo scRNA-seq processing
 # =============================================================================
-# Version 4.3
+# Version 4.4
 #
 # Usage:  starsolo <platform> [args…]
 #         starsolo --help
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-STARSOLO_VERSION="4.3"
+STARSOLO_VERSION="4.4"
 
 # ---------- Resolve install paths -------------------------------------------
 
@@ -71,13 +71,15 @@ Global options (available for all platforms):
                              (e.g. gex_3pv3_family, gex_3pv4_gemx, v3, v4)
       --skip-length-checks  10x only: warn instead of aborting on unexpected
                              R1/R2 read lengths
+      --no-velocyto         10x only: do not count Velocyto matrices
   -c, --cpus <N>            Number of threads  [default: ${STARSOLO_CPUS}]
   --bam                     Output sorted BAM
   --no-bam                  No BAM output (default)
   -h, --help                Show help (per-platform if after platform name)
   --version                 Print version
-  --                        Pass all following arguments verbatim to STAR
-                             (must come last; appended after built-in flags)
+  --                        Pass all following arguments to STAR (must come
+                             last); a flag given here replaces the built-in
+                             flag of the same name
 
 Configuration:
   Defaults are read from $STARSOLO_ROOT/etc/defaults.conf
@@ -87,13 +89,14 @@ Configuration:
 Examples:
   starsolo 10x /data/fastqs SAMPLE1 --species human
   starsolo 10x /data/fastqs SAMPLE1 --ref /path/to/index --bam
+  starsolo 10x /data/fastqs SAMPLE1 --species human --no-velocyto
   starsolo smartseq manifest.tsv --species mouse
   starsolo dropseq /data/fastqs SAMPLE1 --species human
   starsolo rhapsody /data/fastqs SAMPLE1 --species human
   starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
   starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
   starsolo qc sample1/ sample2/ --species human
-  starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull SJ
+  starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
 EOF
 }
 
@@ -114,6 +117,7 @@ parse_droplet_args() {
     WL="$STARSOLO_WL_DIR"
     CHEM=""                             # 10x: skip chemistry detection
     SKIPLEN="False"                     # 10x: skip read-length validation
+    NOVELO="False"                      # 10x: drop Velocyto from --soloFeatures
     BAM_MODE="$STARSOLO_BAM_MODE"
     REF=""
     SPECIES=""
@@ -146,41 +150,51 @@ parse_droplet_args() {
     fi
 
     # For smartseq we only need 1 positional; others need 2
-    if [[ $PLATFORM == "smartseq" ]]; then
-        if (( ${#POSITIONALS[@]} < 1 )); then
-            "show_${PLATFORM}_help"
-            exit 1
-        fi
-        FQDIR="${POSITIONALS[0]}"  # actually TSV for smartseq
-    else
-        if (( ${#POSITIONALS[@]} < 2 )); then
-            "show_${PLATFORM}_help"
-            exit 1
-        fi
-        FQDIR="${POSITIONALS[0]}"
-        TAG="${POSITIONALS[1]}"
+    local NPOS=2
+    if [[ $PLATFORM == "smartseq" ]]; then NPOS=1; fi
+    if (( ${#POSITIONALS[@]} < NPOS )); then
+        "show_${PLATFORM}_help"
+        exit 1
     fi
+    if (( ${#POSITIONALS[@]} > NPOS )); then
+        die "Unexpected argument '${POSITIONALS[NPOS]}'. Run 'starsolo $PLATFORM --help'."
+    fi
+    FQDIR="${POSITIONALS[0]}"          # manifest TSV for smartseq
+    if (( NPOS == 2 )); then TAG="${POSITIONALS[1]}"; fi
 
-    # Parse flags
+    # Parse flags. _need_value checks that the option at FLAGS[j] has a value.
     local j=0
+    _need_value() {
+        if [[ -z ${FLAGS[j+1]-} || ${FLAGS[j+1]} == --* ]]; then
+            die "Option ${FLAGS[j]} needs a value. Run 'starsolo $PLATFORM --help'."
+        fi
+    }
     while (( j < ${#FLAGS[@]} )); do
         case "${FLAGS[$j]}" in
             -s|--species)
+                _need_value
                 SPECIES="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -r|--ref)
+                _need_value
                 REF="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -w|--whitelist-dir)
+                _need_value
                 WL="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --wl)
+                _need_value
                 CHEM="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --skip-length-checks)
                 SKIPLEN="True"
                 j=$((j + 1)) ;;
+            --no-velocyto)
+                NOVELO="True"
+                j=$((j + 1)) ;;
             -c|--cpus)
+                _need_value
                 CPUS="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --bam)
@@ -190,9 +204,11 @@ parse_droplet_args() {
                 BAM_MODE="nobam"
                 j=$((j + 1)) ;;
             --adapter)
+                _need_value
                 ADAPTER="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             --strand)
+                _need_value
                 STRAND="${FLAGS[$((j+1))]}"
                 j=$((j + 2)) ;;
             -h|--help)
@@ -207,6 +223,12 @@ parse_droplet_args() {
         esac
     done
 
+    [[ $CPUS =~ ^[1-9][0-9]*$ ]] || die "--cpus must be a positive integer, got '$CPUS'."
+    case "$STRAND" in
+        Forward|Reverse|Unstranded) ;;
+        *) die "--strand must be Forward, Reverse or Unstranded, got '$STRAND'." ;;
+    esac
+
     # --wl only makes sense where chemistry is auto-detected
     if [[ -n "$CHEM" && $PLATFORM != "10x" ]]; then
         die "--wl is only supported for the 10x platform (its whitelist is fixed for $PLATFORM)."
@@ -214,6 +236,22 @@ parse_droplet_args() {
     if [[ $SKIPLEN == "True" && $PLATFORM != "10x" ]]; then
         die "--skip-length-checks is only supported for the 10x platform."
     fi
+    if [[ $NOVELO == "True" && $PLATFORM != "10x" ]]; then
+        die "--no-velocyto is only supported for the 10x platform (no other platform counts Velocyto)."
+    fi
+    if [[ $NOVELO == "True" ]] && has_solo_feature Velocyto ${STAR_EXTRA_ARGS[@]+"${STAR_EXTRA_ARGS[@]}"}; then
+        die "--no-velocyto conflicts with Velocyto in the --soloFeatures passed after '--'."
+    fi
+
+    # STAR flags starsolo owns: each has a starsolo option, or moving it would
+    # hide outputs from post-processing and 'starsolo qc'.
+    local a
+    for a in ${STAR_EXTRA_ARGS[@]+"${STAR_EXTRA_ARGS[@]}"}; do
+        case "$a" in
+            --runThreadN|--genomeDir|--readFilesIn|--readFilesManifest|--outFileNamePrefix|--soloOutFileNames)
+                die "STAR flag '$a' is set by starsolo and cannot be passed after '--'. Run 'starsolo $PLATFORM --help'." ;;
+        esac
+    done
 
     # Resolve REF from species if not explicitly given
     if [[ -z "$REF" ]]; then
@@ -249,7 +287,7 @@ main() {
                 show_10x_help; exit 0
             fi
             parse_droplet_args "10x" "$@"
-            run_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$CHEM" "$SKIPLEN"
+            run_10x "$FQDIR" "$TAG" "$CPUS" "$REF" "$WL" "$BAM" "$CHEM" "$SKIPLEN" "$NOVELO"
             ;;
         smartseq|smart-seq|ss2)
             if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then

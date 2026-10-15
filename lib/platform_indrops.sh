@@ -24,8 +24,6 @@ run_indrops() {
     BC1=$(readlink -f "$BC1")
     BC2=$(readlink -f "$BC2")
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -36,9 +34,12 @@ run_indrops() {
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
 
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
+
     log_info "Running STARsolo (inDrops) for '$TAG' (adapter=$ADAPTER) …"
 
-    STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+    merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
         --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
         --soloType CB_UMI_Complex --soloCBwhitelist "$BC1" "$BC2" \
         --soloAdapterSequence "$ADAPTER" --soloAdapterMismatchesNmax 3 \
@@ -46,10 +47,10 @@ run_indrops() {
         --soloCBposition 0_0_2_-1 3_1_3_8 \
         --soloUMIposition 3_9_3_14 \
         --soloFeatures Gene GeneFull \
-        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        "${STAR_EXTRA_ARGS[@]}"
+        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+    run_star
 
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_indrops_help() {
@@ -74,7 +75,7 @@ Options:
                              [default: GAGTGATTGCTTGTGACGCCTT]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

@@ -15,8 +15,6 @@ run_dropseq() {
     # Convert to absolute path before cd
     REF=$(readlink -f "$REF")
 
-    mkdir -p "$TAG" && cd "$TAG" || exit
-
     # Discover FASTQs
     local fq_info R1 R2
     fq_info=$(find_fastq_files "$FQDIR_ABS" "$TAG")
@@ -27,18 +25,21 @@ run_dropseq() {
     comp_info=$(check_compression "$FQDIR_ABS" "$TAG")
     IFS='|' read -r GZIP ZCMD <<< "$comp_info"
 
+    # Create the output directory only once the FASTQs are found
+    mkdir -p "$TAG" && cd "$TAG" || exit
+
     log_info "Running STARsolo (Drop-seq) for '$TAG' …"
 
-    STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+    merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
         --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
         --soloType CB_UMI_Simple --soloCBwhitelist None \
         --soloCBstart 1 --soloCBlen 12 --soloUMIstart 13 --soloUMIlen 8 \
         --soloBarcodeReadLength 0 \
         --soloFeatures Gene GeneFull \
-        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        "${STAR_EXTRA_ARGS[@]}"
+        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+    run_star
 
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_dropseq_help() {
@@ -57,7 +58,7 @@ Options:
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

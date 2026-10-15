@@ -18,7 +18,7 @@ A single command-line tool that wraps [STAR](https://github.com/alexdobin/STAR) 
 
 ### Prerequisites
 
-The following tools **must be available in `$PATH`** before running `starsolo`:
+The following tools **must be available in `$PATH`** before running `starsolo` (which itself needs bash ≥ 4.4):
 
 | Tool | Tested version | Purpose |
 |:--|:--|:--|
@@ -84,33 +84,39 @@ starsolo <platform> <args…> [options]
 | `-w, --whitelist-dir <dir>` | Barcode whitelist directory | from config |
 | `--wl <chemistry>` | **10x only** — use this chemistry instead of detecting it | auto-detect |
 | `--skip-length-checks` | **10x only** — warn instead of aborting on unexpected read lengths | off |
+| `--no-velocyto` | **10x only** — do not count Velocyto matrices (see [Velocyto](#velocyto)) | off |
 | `-c, --cpus <N>` | Number of threads | `16` |
 | `--bam` | Output coordinate-sorted BAM | off |
 | `--no-bam` | Suppress BAM output (default) | ✅ |
 | `-h, --help` | Show help (global or per-platform) | — |
 | `--version` | Print version | — |
-| `--` | Pass all following arguments verbatim to `STAR` | — |
+| `--` | Pass all following arguments to `STAR`, replacing built-in flags of the same name | — |
 
 ### Passing extra options to STAR
 
-Any arguments after a `--` sentinel are passed verbatim to the underlying `STAR`
-command, appended after the built-in flags. This works on every platform and lets
-you override defaults or set options the CLI doesn't expose:
+Any arguments after a `--` sentinel are passed to the underlying `STAR`
+command. This works on every platform and lets you override defaults or set
+options the CLI doesn't expose:
 
 ```bash
-starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull SJ
+starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
 ```
 
 The `--` must come last, after all `starsolo` options.
 
-**Overriding built-in flags.** Passthrough arguments are appended *after* the
-flags the CLI sets. STAR uses the last occurrence of a repeated parameter, so a
-passthrough flag overrides the built-in value of the same name — e.g.
-`-- --outFilterScoreMin 20` replaces the default `--outFilterScoreMin 30`. For
-multi-value parameters this is a full replacement, not a merge:
-`-- --soloFeatures Gene GeneFull SJ` replaces the built-in feature list
-entirely. (The parameter does appear twice on the resulting command line; this
-is expected and harmless.)
+**Overriding built-in flags.** STAR rejects a parameter given twice, so
+`starsolo` removes each built-in flag (with its values) that the passthrough
+sets again, and appends the passthrough. `-- --outFilterScoreMin 20` replaces
+the default `--outFilterScoreMin 30`. For multi-value parameters this is a full
+replacement, not a merge: `-- --soloFeatures Gene GeneFull SJ` replaces the
+built-in feature list entirely. For example, to add `GeneFull_Ex50pAS` (STAR's
+intronic counting closest to Cell Ranger's "include introns") to the 10x
+defaults, pass `-- --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto`.
+
+A few flags are set by `starsolo` and cannot be passed after `--`:
+`--runThreadN` (use `--cpus`), `--genomeDir` (use `--ref`/`--species`),
+`--readFilesIn`, `--readFilesManifest`, `--outFileNamePrefix` and
+`--soloOutFileNames`.
 
 ### 10x Genomics
 
@@ -184,7 +190,42 @@ UMI at all.
 
 #### Paired-end processing
 
-5' libraries with long R1 reads (>50 bp) are automatically processed in paired-end mode with `--soloBarcodeMate 1 --clip5pNbases 39 0`. 3' libraries are always single-end.
+5' libraries with long R1 reads (>50 bp) are automatically processed in paired-end mode with `--soloBarcodeMate 1 --clip5pNbases <CB+UMI+13> 0` (39 for 5' v1/v2, 41 for GEM-X 5' with its 12 bp UMI). 3' libraries are always single-end.
+
+Only the two whitelists used by 5' chemistries (`737K-august-2016.txt` and
+`3M-5pgex-jan-2023.txt`) can be processed as 5'. With any other (3'-only)
+whitelist the strand is always `Forward`: if the strand test favours Reverse
+(this happens on some single-nucleus 3' data with a long R1), a warning with
+both percentages is logged and the run uses Forward, single-end. `strand.txt`
+notes the override.
+
+#### Velocyto
+
+`starsolo 10x` counts `Gene GeneFull Velocyto` by default. STAR 2.7.10a breaks in
+Velocyto in two known cases ([#27](https://github.com/cellgeni/STARsolo/issues/27),
+[alexdobin/STAR#2710](https://github.com/alexdobin/STAR/issues/2710)), and the
+wrapper handles them so that they cost the Velocyto output, not the sample:
+
+- `--no-velocyto` drops Velocyto from the feature list.
+- Paired-end GEM-X 5' runs (`3M-5pgex-jan-2023.txt`) drop Velocyto
+  automatically, since STAR segfaults on them while mapping.
+- If STAR crashes in Velocyto counting after the other features are written,
+  those features are kept and compressed, the partial `output/Velocyto` is
+  removed, and the run exits 0. If a BAM was requested, it is missing (STAR
+  sorts it after Solo counting), so the run exits with STAR's code instead.
+- If STAR crashes while mapping with Velocyto on, the run is repeated once
+  without Velocyto. The first attempt's log is kept as `Log.attempt1.out`.
+- With 2³² (about 4.3 × 10⁹) or more input reads, STAR's read index wraps and
+  Velocyto counts are wrong even when STAR finishes, so `output/Velocyto` is
+  removed after the run. BAM `CB`/`UB` tags come from the same index, and a
+  warning is logged if a BAM was written.
+
+Each of these is recorded in `strand.txt` (`Velocyto:` line), and whenever
+Velocyto output is missing for a reason other than `--no-velocyto`, a
+`velocyto_failed.txt` marker (`key=value` lines: `star_exit_code`, `stage`,
+`action`, …) is written next to it and reported by `starsolo qc`. After any
+STAR failure `_STARtmp` is deleted, and the genome that the strand test loaded
+into shared memory is released.
 
 ### Smart-seq / Smart-seq2
 
@@ -264,7 +305,8 @@ starsolo qc sample1/ sample2/ --no-contamination-check
 
 #### Checks performed
 
-- **Completion** — warns if `_STARtmp` is still present (run did not finish)
+- **Completion** — warns if `_STARtmp` is still present or `Log.final.out` is missing (run did not finish)
+- **Velocyto** — warns if `starsolo 10x` dropped the Velocyto output (`velocyto_failed.txt`)
 - **Cross-contamination** — compares filtered barcodes between every pair of samples; warns if overlap exceeds 20%
 - **Low mapping** — warns if `GeneFull` unique mapping rate is ≤ 20%
 
@@ -348,6 +390,9 @@ STARsolo/
 │   └── qc.sh                 # QC aggregation logic
 ├── etc/
 │   └── defaults.conf          # Default configuration
+├── tests/
+│   ├── test_lib.sh            # Unit tests of the library functions
+│   └── test_recovery.sh       # 10x Velocyto/crash-recovery tests (stub STAR)
 ├── scripts/
 │   ├── solo_qc.sh             # QC aggregation
 │   ├── bbduk_trim.sh          # Adapter trimming helper

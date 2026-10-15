@@ -309,7 +309,7 @@ run_10x() {
     log_info "Running STARsolo alignment …"
 
     if [[ $PAIRED == "True" ]]; then
-        STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+        merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
             --readFilesIn "$R1" "$R2" --runDirPerm All_RWX $GZIP $BAM \
             --soloBarcodeMate 1 --clip5pNbases 39 0 \
             --soloType CB_UMI_Simple --soloCBwhitelist "$BC" --soloCBstart 1 \
@@ -320,10 +320,9 @@ run_10x() {
             --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM \
-            "${STAR_EXTRA_ARGS[@]}"
+            --soloMultiMappers EM
     else
-        STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+        merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
             --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
             --soloType CB_UMI_Simple --soloCBwhitelist "$BC" --soloBarcodeReadLength 0 \
             --soloCBlen "$CBLEN" --soloUMIstart $((CBLEN + 1)) --soloUMIlen "$UMILEN" \
@@ -333,9 +332,9 @@ run_10x() {
             --clipAdapterType CellRanger4 --outFilterScoreMin 30 --genomeLoad LoadAndRemove \
             --soloFeatures Gene GeneFull Velocyto \
             --soloOutFileNames "$SOLOFILENAMES" features.tsv barcodes.tsv matrix.mtx \
-            --soloMultiMappers EM \
-            "${STAR_EXTRA_ARGS[@]}"
+            --soloMultiMappers EM
     fi
+    run_star
 
     # 8. Cleanup & compress
     rm -rf test.R?.fastq test_forward test_reverse
@@ -375,7 +374,7 @@ Options:
   -c, --cpus <N>            Number of threads             [default: 16]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

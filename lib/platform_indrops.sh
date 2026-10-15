@@ -38,7 +38,7 @@ run_indrops() {
 
     log_info "Running STARsolo (inDrops) for '$TAG' (adapter=$ADAPTER) …"
 
-    STAR --runThreadN "$CPUS" --genomeDir "$REF" \
+    merge_star_args --runThreadN "$CPUS" --genomeDir "$REF" \
         --readFilesIn "$R2" "$R1" --runDirPerm All_RWX $GZIP $BAM \
         --soloType CB_UMI_Complex --soloCBwhitelist "$BC1" "$BC2" \
         --soloAdapterSequence "$ADAPTER" --soloAdapterMismatchesNmax 3 \
@@ -46,8 +46,8 @@ run_indrops() {
         --soloCBposition 0_0_2_-1 3_1_3_8 \
         --soloUMIposition 3_9_3_14 \
         --soloFeatures Gene GeneFull \
-        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
-        "${STAR_EXTRA_ARGS[@]}"
+        --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx
+    run_star
 
     process_output_files "output" "$CPUS"
 }
@@ -74,7 +74,7 @@ Options:
                              [default: GAGTGATTGCTTGTGACGCCTT]
   --bam                     Output sorted BAM file
   --no-bam                  Do not output BAM (default)
-  --                        Pass all following arguments verbatim to STAR
+  --                        Pass the rest to STAR; replaces built-in flags
   -h, --help                Show this help
 EOF
 }

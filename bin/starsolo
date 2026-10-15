@@ -76,8 +76,9 @@ Global options (available for all platforms):
   --no-bam                  No BAM output (default)
   -h, --help                Show help (per-platform if after platform name)
   --version                 Print version
-  --                        Pass all following arguments verbatim to STAR
-                             (must come last; appended after built-in flags)
+  --                        Pass all following arguments to STAR (must come
+                             last); a flag given here replaces the built-in
+                             flag of the same name
 
 Configuration:
   Defaults are read from $STARSOLO_ROOT/etc/defaults.conf
@@ -93,7 +94,7 @@ Examples:
   starsolo indrops /data/fastqs SAMPLE1 --species human --adapter GAGTGATTGCTTGTGACGCCAA
   starsolo strt /data/fastqs SAMPLE1 --species human --strand Reverse
   starsolo qc sample1/ sample2/ --species human
-  starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull SJ
+  starsolo 10x /data/fastqs SAMPLE1 --species human -- --outFilterScoreMin 20 --soloFeatures Gene GeneFull GeneFull_Ex50pAS Velocyto
 EOF
 }
 
@@ -214,6 +215,16 @@ parse_droplet_args() {
     if [[ $SKIPLEN == "True" && $PLATFORM != "10x" ]]; then
         die "--skip-length-checks is only supported for the 10x platform."
     fi
+
+    # STAR flags starsolo owns: each has a starsolo option, or moving it would
+    # hide outputs from post-processing and 'starsolo qc'.
+    local a
+    for a in ${STAR_EXTRA_ARGS[@]+"${STAR_EXTRA_ARGS[@]}"}; do
+        case "$a" in
+            --runThreadN|--genomeDir|--readFilesIn|--readFilesManifest|--outFileNamePrefix|--soloOutFileNames)
+                die "STAR flag '$a' is set by starsolo and cannot be passed after '--'. Run 'starsolo $PLATFORM --help'." ;;
+        esac
+    done
 
     # Resolve REF from species if not explicitly given
     if [[ -z "$REF" ]]; then

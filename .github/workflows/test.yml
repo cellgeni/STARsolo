@@ -57,3 +57,34 @@ jobs:
                 fi
     
 
+    unit:
+        runs-on: ubuntu-latest
+        container: quay.io/cellgeni/starsolo:base
+        name: "Run library and 10x recovery tests"
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Unpack test data
+              run: tar -xzf data/test.tar.gz
+
+            - name: Library tests
+              run: bash tests/test_lib.sh
+
+            - name: 10x Velocyto and crash-recovery tests
+              run: bash tests/test_recovery.sh
+
+            - name: 10x with BAM, unmapped reads and overridden flags
+              run: |
+                set -e
+                bin/starsolo 10x data/test/fastqs/10x 10x \
+                    --ref data/test/reference/index \
+                    --whitelist-dir data/test/whitelists \
+                    --bam \
+                    --cpus 2 \
+                    -- --winAnchorMultimapNmax 50 --outReadsUnmapped Fastx --outFilterScoreMin 20 \
+                       --limitBAMsortRAM 2000000000 --soloFeatures Gene GeneFull SJ Velocyto
+                test -s 10x/Aligned.sortedByCoord.out.bam.bai
+                bzip2 -t 10x/Unmapped.out.mate1.bz2
+                test -d 10x/output/SJ

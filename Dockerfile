@@ -1,12 +1,13 @@
 # ---- STAR, built in its own stage so that only the binary reaches the image ----
 # STAR_REPO/STAR_REF select the GitHub source tarball (a tag, branch or commit).
+# STAR_REF is pinned to a commit so that a moved tag cannot change the image.
 # The image stays on STAR 2.7.10a_alpha_220818 so that results match earlier
 # batches; the cellgeni build adds the Velocyto fixes on top of it (AGENTS.md).
 FROM ubuntu:20.04 AS star-build
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG STAR_REPO=alexdobin/STAR
-ARG STAR_REF=2.7.10a_alpha_220818
+ARG STAR_REPO=cellgeni/STAR
+ARG STAR_REF=e6187c78b77642fa21b1ace14387a38ce254c49b
 
 RUN apt-get update && apt-get -y --no-install-recommends -qq install \
         build-essential ca-certificates wget zlib1g-dev && \
@@ -23,8 +24,8 @@ FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG STAR_REPO=alexdobin/STAR
-ARG STAR_REF=2.7.10a_alpha_220818
+ARG STAR_REPO=cellgeni/STAR
+ARG STAR_REF=e6187c78b77642fa21b1ace14387a38ce254c49b
 ARG samtools_version=1.21
 ARG bbmap_version=38.97
 ARG seqtk_version=1.4

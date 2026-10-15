@@ -43,8 +43,10 @@ There is no build step: `bin/starsolo` sources everything from `lib/`.
   alexdobin/STAR#2710.
 - **STAR version.** The image uses STAR 2.7.10a_alpha_220818 so that new
   batches match earlier ones. The Dockerfile builds it from `STAR_REPO` /
-  `STAR_REF`. The cellgeni build `2.7.10a_alpha_220818_velofix` (branch
-  `2.7.10a_alpha_220818-velocyto` of the STAR fork) adds only the two
+  `STAR_REF` (pinned to a commit). The cellgeni build
+  `2.7.10a_alpha_220818_velofix` (branch
+  [`2.7.10a_alpha_220818-velocyto`](https://github.com/cellgeni/STAR/tree/2.7.10a_alpha_220818-velocyto)
+  of `cellgeni/STAR`) adds only the two
   Velocyto fixes from #27; on single-end data it was verified byte-identical
   to stock. The wrapper detects it (`STAR --version` contains `velofix`,
   `Log.out` has the 64-bit read-index line) and still copes with stock STAR.

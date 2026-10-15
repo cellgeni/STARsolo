@@ -219,7 +219,9 @@ of [alexdobin/STAR#2711](https://github.com/alexdobin/STAR/pull/2711)). On
 single-end 10x 3' data its output is byte-identical to stock 2.7.10a
 (matrices, `Log.final.out`, BAM), so new batches stay comparable with earlier
 ones; paired-end Velocyto changes only for the reads that were read from
-garbage. The Dockerfile's `STAR_REPO`/`STAR_REF` select the source.
+garbage. The source is the
+[`2.7.10a_alpha_220818-velocyto`](https://github.com/cellgeni/STAR/tree/2.7.10a_alpha_220818-velocyto)
+branch of `cellgeni/STAR`; the Dockerfile's `STAR_REPO`/`STAR_REF` select it.
 
 The wrapper also copes with stock STAR, so that a Velocyto failure costs the
 Velocyto output, not the sample:

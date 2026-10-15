@@ -339,7 +339,7 @@ run_10x() {
 
     # 8. Cleanup & compress
     rm -rf test.R?.fastq test_forward test_reverse
-    process_output_files "$SOLOFILENAMES"
+    process_output_files "$SOLOFILENAMES" "$CPUS"
 }
 
 # ---------- Subcommand help -------------------------------------------------

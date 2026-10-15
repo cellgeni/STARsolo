@@ -51,7 +51,7 @@ run_rhapsody() {
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
         "${STAR_EXTRA_ARGS[@]}"
 
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_rhapsody_help() {

@@ -38,7 +38,7 @@ run_dropseq() {
         --soloOutFileNames output/ features.tsv barcodes.tsv matrix.mtx \
         "${STAR_EXTRA_ARGS[@]}"
 
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_dropseq_help() {

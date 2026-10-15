@@ -50,7 +50,7 @@ run_smartseq() {
         "${STAR_EXTRA_ARGS[@]}"
 
     rm -f "$NEW_MANIFEST"
-    process_output_files "output"
+    process_output_files "output" "$CPUS"
 }
 
 show_smartseq_help() {

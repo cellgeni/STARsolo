@@ -66,30 +66,44 @@ check_compression() {
 
 # Compresses outputs and optionally indexes BAM.
 #   $1 : OUTPUT_DIR   – STARsolo output directory (e.g. "output/")
+#   $2 : CPUS         – thread budget shared by samtools / pbzip2
 #   No singularity; tools expected in PATH.
 process_output_files() {
-    local OUTPUT_DIR=${1:-output}
+    local OUTPUT_DIR=${1:-output} CPUS=${2:-1}
+    [[ $CPUS =~ ^[1-9][0-9]*$ ]] || die "process_output_files: invalid CPU count '$CPUS'."
 
-    # Index BAM if it exists
+    # Index BAM if it exists (-@ counts threads in addition to the main one)
     if [[ -s "Aligned.sortedByCoord.out.bam" ]]; then
         log_info "Indexing BAM file …"
-        samtools index -@16 Aligned.sortedByCoord.out.bam
+        samtools index -@ $(( CPUS > 1 ? CPUS - 1 : 0 )) Aligned.sortedByCoord.out.bam
     fi
 
-    # Compress unmapped reads
-    if [[ -s "Unmapped.out.mate1" ]]; then
-        pbzip2 -9 Unmapped.out.mate1 &
-    fi
-    if [[ -s "Unmapped.out.mate2" ]]; then
-        pbzip2 -9 Unmapped.out.mate2 &
-    fi
-    wait
+    # Compress unmapped reads. pbzip2 takes "-p<N>" with no space, and
+    # otherwise uses every core on the node, so split CPUS between the mates.
+    local -a MATES=()
+    local m
+    for m in Unmapped.out.mate1 Unmapped.out.mate2; do
+        if [[ -s "$m" ]]; then MATES+=("$m"); fi
+    done
 
-    # Gzip all matrix / barcode / feature files
-    find "$OUTPUT_DIR" -name "*.tsv" -exec gzip {} + 2>/dev/null
-    find "$OUTPUT_DIR" -name "*.mtx" -exec gzip {} + 2>/dev/null
+    if (( ${#MATES[@]} == 1 )); then
+        pbzip2 -f -9 -p"$CPUS" "${MATES[0]}" || die "pbzip2 failed on ${MATES[0]}."
+    elif (( ${#MATES[@]} == 2 && CPUS == 1 )); then
+        pbzip2 -f -9 -p1 "${MATES[0]}" || die "pbzip2 failed on ${MATES[0]}."
+        pbzip2 -f -9 -p1 "${MATES[1]}" || die "pbzip2 failed on ${MATES[1]}."
+    elif (( ${#MATES[@]} == 2 )); then
+        local pid1 pid2 rc=0
+        pbzip2 -f -9 -p"$(( (CPUS + 1) / 2 ))" "${MATES[0]}" & pid1=$!
+        pbzip2 -f -9 -p"$(( CPUS / 2 ))" "${MATES[1]}" & pid2=$!
+        wait "$pid1" || rc=$?
+        wait "$pid2" || rc=$?
+        (( rc == 0 )) || die "pbzip2 failed (exit $rc) compressing unmapped reads."
+    fi
 
-    wait
+    # Gzip all matrix / barcode / feature files. -type f skips the SJ feature's
+    # features.tsv symlink (gzip refuses symlinks); -f allows a rerun.
+    find "$OUTPUT_DIR" -type f \( -name "*.tsv" -o -name "*.mtx" \) -exec gzip -f {} +
+
     log_info "ALL DONE!"
 }
 

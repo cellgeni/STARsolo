@@ -126,9 +126,10 @@ star_args_drop_feature() {
 #   $1 : NAME (without dashes)   $2 : DEFAULT
 star_arg_first() {
     local NAME=--$1 DEFAULT=${2:-} i
-    for (( i = 0; i + 1 < ${#STAR_ARGS[@]}; i++ )); do
-        if [[ ${STAR_ARGS[i]} == "$NAME" ]]; then
-            echo "${STAR_ARGS[i+1]}"
+    local -a A=(${STAR_ARGS[@]+"${STAR_ARGS[@]}"})
+    for (( i = 0; i + 1 < ${#A[@]}; i++ )); do
+        if [[ ${A[i]} == "$NAME" ]]; then
+            echo "${A[i+1]}"
             return 0
         fi
     done
@@ -185,33 +186,6 @@ release_shared_genome() {
     STAR --genomeDir "$REF" --genomeLoad Remove --outFileNamePrefix "$D/" &>/dev/null || true
     rm -rf -- "$D"
 }
-
-# Estimates the number of reads in a comma-separated list of FASTQ files
-# without reading them in full: decompresses the first WINDOW bytes of each
-# compressed file and scales by the file size. Files smaller than WINDOW are
-# counted exactly. Prints 0 if nothing could be read.
-#   $1 : FASTQ files (comma-sep)   $2 : ZCMD   $3 : WINDOW (bytes)
-# Runs in a subshell so that pipefail (head/zcat on a cut stream) stays local.
-estimate_read_count() (
-    set +o pipefail
-    WINDOW=${3:-50000000}
-    TOTAL=0
-    IFS=',' read -r -a FILES <<< "$1"
-    for f in "${FILES[@]}"; do
-        SIZE=$(stat -L -c %s -- "$f" 2>/dev/null) || SIZE=0
-        if (( SIZE == 0 )); then continue; fi
-        if (( SIZE <= WINDOW )); then
-            LINES=$($2 "$f" 2>/dev/null | wc -l)
-            EST=$(( LINES / 4 ))
-        else
-            LINES=$(head -c "$WINDOW" -- "$f" | $2 2>/dev/null | wc -l)
-            # awk only for the float ratio; %.0f keeps mawk out of exponent form
-            EST=$(awk -v l="$LINES" -v s="$SIZE" -v w="$WINDOW" 'BEGIN { printf "%.0f", l / 4 * s / w }')
-        fi
-        TOTAL=$(( TOTAL + EST ))
-    done
-    echo "$TOTAL"
-)
 
 # ---------- Post-alignment processing --------------------------------------
 
